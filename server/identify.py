@@ -14,6 +14,7 @@ import re
 import socket
 import struct
 import subprocess
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
@@ -173,11 +174,17 @@ def name_rpc(ip, timeout=2.0):
         return name or None
 
 
-def upnp_describe(location):
-    """friendlyName / manufacturer / model / type from a UPnP description URL."""
+def upnp_describe(location, ip):
+    """friendlyName / manufacturer / model / type from a UPnP description URL.
+
+    The URL is whatever a device on the network announced, so only plain http to
+    that same device is followed (no file://, no other hosts), and reads are capped."""
+    u = urllib.parse.urlparse(location)
+    if u.scheme != "http" or u.hostname != ip:
+        return {}
     try:
         with urllib.request.urlopen(location, timeout=3) as r:
-            root = ET.fromstring(r.read())
+            root = ET.fromstring(r.read(256 * 1024))
     except (OSError, ET.ParseError, ValueError):
         return {}
     out = {}
@@ -236,7 +243,7 @@ def identify(ip, mac, upnp_location=None):
         what = "Dispozitiv Linux (SSH)"
 
     name = None
-    upnp = upnp_describe(upnp_location) if upnp_location else {}
+    upnp = upnp_describe(upnp_location, ip) if upnp_location else {}
     if upnp:
         dtype = upnp.get("deviceType", "")
         if "MediaRenderer" in dtype:

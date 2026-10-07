@@ -6,6 +6,7 @@ the status of the devices listed in devices.json. Stdlib only, so it stays
 light on the Celeron.
 """
 import base64
+import ipaddress
 import fcntl
 import json
 import os
@@ -394,6 +395,7 @@ events = deque(load_json(EVENTS_FILE, []), maxlen=200)
 
 
 def notify(title, body, icon):
+    body = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     try:
         subprocess.Popen(
             ["notify-send", "--app-name=Homebase", "--hint=string:desktop-entry:homebase", f"--icon={icon}", title, body],
@@ -480,8 +482,10 @@ def sampler():
                 # of silence. Without this, a Pi Zero logged on/off every minute.
                 if online is False:
                     first_fail = fails.setdefault(d["id"], time.time())
-                    if time.time() - first_fail < DEVICE_OFF_AFTER and state["devices"].get(d["id"], {}).get("online"):
-                        online = True
+                    if time.time() - first_fail < DEVICE_OFF_AFTER:
+                        # Keep showing what we knew; if we knew nothing yet (just started), "checking".
+                        prev_online = state["devices"].get(d["id"], {}).get("online")
+                        online = True if prev_online else None
                 else:
                     fails.pop(d["id"], None)
                 if waking and online is False:
@@ -574,9 +578,9 @@ def wake(mac):
 def connect(device):
     if device.get("rustdesk_id"):
         cmd = ["flatpak", "run", "com.rustdesk.RustDesk", "--connect", device["rustdesk_id"]]
-    elif device.get("ssh"):
+    elif device.get("ssh") and lan_ip(device.get("host")):
         target = f"{device['ssh_user']}@{device['host']}" if device.get("ssh_user") else device["host"]
-        cmd = ["ptyxis", "--new-window", "--", "ssh", target]
+        cmd = ["ptyxis", "--new-window", "--", "ssh", "--", target]
     else:
         return False
     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
@@ -588,6 +592,7 @@ def connect(device):
 # play/pause/stop/seek of whatever is playing. No power or app control.
 
 UPNP = "urn:schemas-upnp-org:service:"
+MAX_UPNP_BYTES = 256 * 1024  # device descriptions and SOAP replies are a few KB
 
 
 def dlna_discover(ip, wait=3.0):
@@ -608,12 +613,15 @@ def dlna_discover(ip, wait=3.0):
                         location = line.split(":", 1)[1].strip()
         except socket.timeout:
             return None
+    u = urlparse(location)
+    # The URL comes from whatever answered on the network: only http, only to that device.
+    if u.scheme != "http" or u.hostname != ip:
+        return None
     try:
         with urllib.request.urlopen(location, timeout=4) as r:
-            root = ET.fromstring(r.read())
+            root = ET.fromstring(r.read(MAX_UPNP_BYTES))
     except (OSError, ET.ParseError):
         return None
-    u = urlparse(location)
     out = {"base": f"{u.scheme}://{u.netloc}", "port": u.port or 80}
     for svc in root.iter():
         if not svc.tag.endswith("}service"):
@@ -638,7 +646,7 @@ def soap(dlna, which, action, args="", timeout=3):
         "SOAPACTION": f'"{UPNP}{service}:1#{action}"',
     })
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        root = ET.fromstring(r.read())
+        root = ET.fromstring(r.read(MAX_UPNP_BYTES))
     return {el.tag.split("}")[-1]: (el.text or "") for el in root.iter()}
 
 
@@ -720,11 +728,29 @@ def tv_command(dev, op, value=None):
     return True
 
 
+MAC_RE = re.compile(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$")
+
+
+def lan_ip(value):
+    """The address as a private IPv4 string, or None. Device hosts end up as arguments
+    to ssh/ssh-keygen/ip, so nothing else (like "-oProxyCommand=...") may get in."""
+    try:
+        ip = ipaddress.IPv4Address(str(value).strip())
+    except ValueError:
+        return None
+    return str(ip) if ip.is_private and not ip.is_loopback else None
+
+
+def clean_name(value, limit=40):
+    """Device names go into the page, notifications and the terminal: no control characters."""
+    return "".join(ch for ch in str(value or "") if ch.isprintable()).strip()[:limit]
+
+
 def add_device(body):
-    ip, mac = body.get("ip", ""), body.get("mac", "").lower()
-    name = (body.get("name") or "").strip()[:40]
+    ip, mac = lan_ip(body.get("ip", "")), str(body.get("mac", "")).lower()
+    name = clean_name(body.get("name"))
     kind = body.get("kind") if body.get("kind") in ("desktop", "laptop", "pi", "tv", "other") else "other"
-    if not ip or not mac or not name:
+    if not ip or not MAC_RE.match(mac) or not name:
         return None
     dev = {"id": mac.replace(":", ""), "name": name, "kind": kind, "host": ip, "mac": mac}
     if kind == "pi":
@@ -782,7 +808,7 @@ def edit_device(dev_id, body):
         if not dev:
             return "Dispozitivul nu mai există"
         if "name" in body:
-            name = str(body["name"]).strip()[:40]
+            name = clean_name(body["name"])
             if not name:
                 return "Numele nu poate fi gol"
             dev["name"] = name
@@ -809,9 +835,10 @@ def edit_device(dev_id, body):
 def ssh_forget_key(dev_id):
     """After a device is reinstalled its SSH key changes and ssh refuses to connect; forget the old one."""
     dev = next((d for d in load_devices() if d["id"] == dev_id), None)
-    if not dev:
+    host = lan_ip(dev["host"]) if dev else None
+    if not host:
         return False
-    r = subprocess.run(["ssh-keygen", "-R", dev["host"]], capture_output=True, text=True)
+    r = subprocess.run(["ssh-keygen", "-R", host], capture_output=True, text=True)
     return r.returncode == 0
 
 
@@ -847,7 +874,7 @@ class TermSession:
         if self.pid == 0:  # child: become ssh
             os.environ["TERM"] = "xterm-256color"
             os.execvp("ssh", ["ssh", "-o", "StrictHostKeyChecking=accept-new",
-                              "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15", target])
+                              "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15", "--", target])
         self.chunks = []  # output so far, so a reconnecting page can catch up
         self.closed = False
         self.cond = threading.Condition()
@@ -892,7 +919,9 @@ class TermSession:
 
 
 def term_start(device):
-    if not device.get("ssh"):
+    if not device.get("ssh") or not lan_ip(device.get("host")):
+        return None
+    if device.get("ssh_user") and not SSH_USER_RE.match(device["ssh_user"]):
         return None
     sid = secrets.token_urlsafe(16)
     with terms_lock:
@@ -1007,9 +1036,20 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.reply(200, "ok")
 
 
+PANEL_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
+
+    def foreign_host(self):
+        """True for requests whose Host isn't us. Blocks DNS rebinding: a web page on
+        another domain that resolves to 127.0.0.1 would otherwise read /api/state."""
+        if self.headers.get("Host") in PANEL_HOSTS:
+            return False
+        self.send(403, {"error": "forbidden"})
+        return True
 
     def send(self, code, body, ctype="application/json"):
         data = body if isinstance(body, bytes) else json.dumps(body).encode()
@@ -1021,6 +1061,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        if self.foreign_host():
+            return
         if self.path in ("/", "/index.html"):
             self.send(200, (UI_DIR / "index.html").read_bytes(), "text/html; charset=utf-8")
         elif self.path.startswith("/vendor/"):
@@ -1090,6 +1132,8 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
     def do_POST(self):
+        if self.foreign_host():
+            return
         # Only accept requests from the page itself.
         if self.headers.get("Origin") not in (None, f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}"):
             return self.send(403, {"error": "forbidden"})
