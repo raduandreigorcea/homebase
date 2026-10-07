@@ -30,8 +30,13 @@
     min-height: 100vh;
   }
   header {
-    display: flex; align-items: center; justify-content: space-between;
+    display: grid; grid-template-columns: 1fr 25% 1fr; align-items: center;
     gap: 16px; margin: 0 auto 24px; max-width: 1320px;
+  }
+  header .clock { justify-self: end; }
+  @media (max-width: 760px) {
+    header { grid-template-columns: 1fr auto; }
+    header .net { grid-column: 1 / -1; grid-row: 2; }
   }
   .brand { display: flex; align-items: center; gap: 12px; }
   .brand svg { width: 34px; height: 34px; }
@@ -177,36 +182,32 @@
   .dev-head .pill { margin-left: auto; }
   .dev-icon.sm { width: 40px; height: 40px; border-radius: 10px; }
   .dev-icon.sm svg { width: 22px; height: 22px; }
-  .disc { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 12px; align-items: center;
-          padding: 12px 0; border-top: 1px solid var(--line); }
-  .disc:first-of-type { border-top: 0; padding-top: 0; }
-  .disc-info { min-width: 0; overflow-wrap: anywhere; }
-  .disc-form { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+  .disc-list { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .disc { background: var(--panel-2); border-radius: 12px; padding: 10px 10px 10px 12px; min-width: 0; }
+  .disc.open { grid-column: 1 / -1; padding: 12px 14px 14px; }
+  .disc-row { display: flex; align-items: center; gap: 12px; }
+  .disc .dev-icon.sm { background: var(--bg); }
+  .disc-info { min-width: 0; flex: 1; }
+  .disc-info b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .disc-add { flex: none; padding: 7px 12px; font-size: 13px; background: transparent; }
+  .disc-form { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
   .disc-form input {
-    font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line);
-    border-radius: 10px; padding: 9px 12px; min-width: 0;
+    flex: 1 1 100%; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; min-width: 0;
   }
-  .disc-form input { flex: 1 1 180px; }
   .disc-form input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
-  .disc-form button { padding: 9px 14px; }
-  .kinds { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; order: -1; }
-  .disc-form .kind { padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .kinds { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 auto; }
+  .disc-form .kind { padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--muted); background: var(--bg); }
   .disc-form .kind.sel { background: rgba(52, 211, 153, .14); border-color: var(--green); color: var(--green); }
+  .disc-btns { display: flex; gap: 8px; margin-left: auto; }
+  .disc-btns button { padding: 8px 14px; font-size: 13px; }
+  .disc-more { margin-top: 10px; background: transparent; border-color: transparent; color: var(--muted); font-weight: 500; padding: 6px 4px; font-size: 13px; }
+  .disc-more:hover { background: transparent; border-color: transparent; color: var(--text); }
   .disc-head { display: inline-flex; align-items: center; gap: 6px; }
   .muted-sm { color: var(--dim); font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 500; }
-  .top-right { display: flex; align-items: center; gap: 18px; }
-  .net-chip {
-    display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px;
-    background: var(--panel); border: 1px solid var(--line); font-size: 13px; white-space: nowrap;
-  }
-  .net-chip .net-lbl { color: var(--muted); }
-  .net-chip b { font-weight: 600; }
-  .net-chip.on b { color: var(--green); }
-  .net-chip.on .dot { background: var(--green); box-shadow: 0 0 0 3px rgba(52, 211, 153, .18); }
-  .net-chip.off .dot { background: var(--red); }
-  .net-chip.off b { color: var(--red); }
-  .net-chip .net-spark { width: 64px; height: 20px; }
-  @media (max-width: 560px) { .net-chip .net-spark, .net-chip .net-lbl { display: none; } }
+  /* Internet in the middle of the top bar: just the line and the current ms, no box. */
+  .net { min-width: 0; }
+  .net-chart { width: 100%; height: 40px; display: block; cursor: crosshair; overflow: visible; }
   .ev { display: grid; grid-template-columns: 54px 10px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 7px 0; }
   .ev time { color: var(--dim); font-size: 12px; }
   .ev i { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); align-self: center; }
@@ -214,6 +215,11 @@
   .ev-day { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin: 10px 0 2px; }
   .ev-day:first-child { margin-top: 0; }
   .bat { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .bat-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .bat-net { margin-left: auto; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+  .bat-net svg { width: 18px; height: 18px; flex: none; }
+  .bat-net b { color: var(--text); font-weight: 600; }
+  .bat-net.off b { color: var(--red); }
   .bat svg { width: 18px; height: 18px; flex: none; }
   .bat b { color: var(--text); font-weight: 600; }
   .term-modal { position: fixed; inset: 0; background: rgba(4, 7, 10, .72); display: grid; place-items: center; padding: 24px; z-index: 10; }
@@ -283,10 +289,8 @@
       <p>Panoul tău de control</p>
     </div>
   </div>
-  <div class="top-right">
-    <div class="net-chip" id="inet" title="Internet"></div>
-    <div class="clock"><div class="t" id="clock">--:--</div><div class="d" id="date"></div></div>
-  </div>
+  <div class="net" id="inet"></div>
+  <div class="clock"><div class="t" id="clock">--:--</div><div class="d" id="date"></div></div>
 </header>
 
 <main>
@@ -303,7 +307,7 @@
         <div class="gauge"><svg viewBox="0 0 120 80" id="g-mem"></svg><div class="lbl">Memorie</div><div class="sub" id="g-mem-sub"></div></div>
         <div class="gauge"><svg viewBox="0 0 120 80" id="g-temp"></svg><div class="lbl">Temperatură</div><div class="sub" id="g-temp-sub"></div></div>
       </div>
-      <div class="bat" id="bat"></div>
+      <div class="bat"><span class="bat-info" id="bat"></span><span class="bat-net" id="net-ms"></span></div>
     </section>
 
     <section class="card">
@@ -373,6 +377,18 @@ function gauge(el, pct, text, col) {
     <path d="M${cx - r} ${cy} A${r} ${r} 0 0 1 ${cx + r} ${cy}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round"
           stroke-dasharray="${len}" stroke-dashoffset="${len * (1 - p)}" style="transition:stroke-dashoffset .6s"/>
     <text x="${cx}" y="${cy - 4}" text-anchor="middle" fill="#e6edf3" font-size="20" font-weight="600">${text}</text>`;
+}
+
+// Wi-Fi icon whose lit arcs follow signal strength (like the battery's fill); crossed out when offline.
+function wifiIcon(signal, ok) {
+  if (!ok) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-linecap="round"><path d="M4 9.5a12 12 0 0 1 16 0M7 13a7.5 7.5 0 0 1 10 0"/><circle cx="12" cy="17.5" r="1.3" fill="var(--red)" stroke="none"/><path d="M4 4l16 16"/></svg>';
+  }
+  const bars = signal == null ? 3 : signal > -60 ? 3 : signal > -70 ? 2 : 1;
+  const arc = (d, on) => `<path d="${d}" stroke="${on ? 'currentColor' : 'var(--line)'}"/>`;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round">
+    ${arc('M3.5 9.5a12.5 12.5 0 0 1 17 0', bars >= 3)}${arc('M6.5 12.8a8 8 0 0 1 11 0', bars >= 2)}${arc('M9.3 15.9a3.8 3.8 0 0 1 5.4 0', bars >= 1)}
+    <circle cx="12" cy="18.8" r="1.3" fill="currentColor"/></svg>`;
 }
 
 function batteryIcon(b) {
@@ -533,31 +549,53 @@ function prettyName(n) {
   return /^[A-Z][A-Z]+$/.test(n) ? n[0] + n.slice(1).toLowerCase() : n;
 }
 
-function discoveredCard(list, lastScan, now) {
-  const ago = lastScan ? Math.max(0, Math.round((now - lastScan) / 60)) : null;
-  const when = ago == null ? 'se caută…' : ago < 1 ? 'acum' : `acum ${ago} min`;
-  const rows = list.filter(x => x.kind !== 'router').map(x => {
-    const nice = prettyName(x.name || x.hostname);
-    const guess = nice || (x.kind === 'pi' ? 'Raspberry Pi' : x.kind === 'tv' ? 'Televizor' : '');
-    return `
-    <div class="disc" data-ip="${esc(x.ip)}" data-mac="${esc(x.mac)}">
-      <div class="dev-icon sm">${ICONS[x.kind] || ICONS.other}</div>
-      <div class="disc-info">
-        <div><b>${esc(nice || x.label || x.vendor || 'Dispozitiv necunoscut')}</b></div>
-        <div class="dev-sub">${x.label && nice ? `<span class="os-tag">${esc(x.label)}</span> · ` : ''}${esc(x.ip)} · ${esc(x.mac)}</div>
+let discOpen = null;      // MAC of the row whose "add" form is open (one at a time)
+let discShowUnknown = false;
+
+function discRow(x) {
+  const nice = prettyName(x.name || x.hostname);
+  const title = nice || x.label || x.vendor || 'Dispozitiv necunoscut';
+  const sub = (x.label && nice ? `<span class="os-tag">${esc(x.label)}</span> · ` : '') + esc(x.ip);
+  const open = discOpen === x.mac;
+  const guess = nice || (x.kind === 'pi' ? 'Raspberry Pi' : x.kind === 'tv' ? 'Televizor' : '');
+  return `
+    <div class="disc ${open ? 'open' : ''}" data-ip="${esc(x.ip)}" data-mac="${esc(x.mac)}" title="${esc(x.mac)}">
+      <div class="disc-row">
+        <div class="dev-icon sm">${ICONS[x.kind] || ICONS.other}</div>
+        <div class="disc-info"><b>${esc(title)}</b><div class="dev-sub">${sub}</div></div>
+        ${open ? '' : `<button class="disc-add" data-act="open">${ICONS.plus} Adaugă</button>`}
       </div>
+      ${open ? `
       <div class="disc-form">
         <input type="text" placeholder="Nume (ex: PC-ul din sufragerie)" value="${esc(guess)}" maxlength="40">
         <div class="kinds">${KINDS.map(([k, l]) => `<button type="button" class="kind${k === kindOf(x) ? ' sel' : ''}" data-kind="${k}">${l}</button>`).join('')}</div>
-        <button data-act="add">${ICONS.plus} Adaugă</button>
-      </div>
+        <div class="disc-btns">
+          <button data-act="cancel">Anulează</button>
+          <button class="primary" data-act="add">${ICONS.plus} Adaugă în panou</button>
+        </div>
+      </div>` : ''}
     </div>`;
-  }).join('');
+}
+
+function discoveredCard(list, lastScan, now) {
+  const ago = lastScan ? Math.max(0, Math.round((now - lastScan) / 60)) : null;
+  const when = ago == null ? 'se caută…' : ago < 1 ? 'acum' : `acum ${ago} min`;
+  list = list.filter(x => x.kind !== 'router');
+  // Things we could put a name or an OS on come first; the anonymous rest waits behind a toggle.
+  const known = list.filter(x => x.name || x.hostname || x.label);
+  const unknown = list.filter(x => !(x.name || x.hostname || x.label));
+  const showUnknown = discShowUnknown || unknown.some(x => x.mac === discOpen);
+  const rows = known.map(discRow).join('') + (showUnknown ? unknown.map(discRow).join('') : '');
+  const toggle = unknown.length
+    ? `<button class="disc-more" data-act="unknown">${showUnknown ? 'Ascunde dispozitivele necunoscute'
+        : `Arată încă ${unknown.length} ${unknown.length === 1 ? 'dispozitiv necunoscut' : 'dispozitive necunoscute'}`}</button>` : '';
   return `
   <section class="card" id="disc-card">
     <h2>Găsite în rețea <span class="disc-head"><span class="muted-sm">ultima căutare: ${when}</span>
       <button class="icon-btn" data-act="scan" title="Caută din nou">${ICONS.refresh}</button></span></h2>
-    ${rows || '<div class="dev-sub">Nimic nou în rețea. Când pornești un dispozitiv nou (ex: un Raspberry Pi), apare aici în cel mult 30 de secunde.</div>'}
+    ${rows ? `<div class="disc-list">${rows}</div>` : ''}
+    ${toggle}
+    ${list.length ? '' : '<div class="dev-sub">Nimic nou în rețea. Când pornești un dispozitiv nou (ex: un Raspberry Pi), apare aici în cel mult 30 de secunde.</div>'}
   </section>`;
 }
 
@@ -576,22 +614,79 @@ async function busy(btn, fn, minMs = 0) {
 
 let tvDragging = false;  // true while the TV volume slider is held: skip redraws
 
+// Fixed steps for the chart's ceiling, so the scale only jumps when it must (never per sample).
+const NET_STEPS = [20, 50, 100, 200, 500, 1000, 2000];
+let netHover = null;  // index of the sample under the mouse, or null
+
 function renderInternet(s) {
   const n = s.internet;
   const ok = n?.online;
-  const cls = n == null ? '' : ok ? 'on' : 'off';
-  const label = n == null ? 'Se verifică…'
-    : ok ? (n.latency != null ? `${Math.round(n.latency)} ms` : 'conectat')
-    : `picat de ${dur(s.now - n.down_since)}`;
-  const tip = n == null ? 'Internet' : ok
-    ? `Internet funcțional${n.ssid ? ' · ' + n.ssid : ''}${n.since ? ' · stabil de ' + dur(s.now - n.since) : ''}`
-    : 'Internetul nu merge';
+  const data = s.history?.net_lat || [];
   const box = $('inet');
-  box.className = 'net-chip ' + cls;
-  box.title = tip;
-  const html = `<span class="dot"></span><span class="net-lbl">Internet</span><b>${label}</b><svg class="net-spark" id="s-inet" preserveAspectRatio="none"></svg>`;
-  if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
-  spark($('s-inet'), [{ data: s.history?.net_lat, col: ok ? 'var(--green)' : 'var(--red)' }]);
+  box.className = 'net ' + (n == null ? '' : ok ? 'on' : 'off');
+  box.title = n == null ? 'Internet: se verifică' : ok
+    ? `Internet${n.ssid ? ' · ' + n.ssid : ''}${n.since ? ' · stabil de ' + dur(s.now - n.since) : ''} · ultimele ${Math.round(data.length * 4 / 60)} min`
+    : 'Internetul nu merge';
+  if (!box.querySelector('.net-chart')) {
+    box.innerHTML = `<svg class="net-chart" preserveAspectRatio="none" role="img" aria-label="Timp de răspuns spre internet"></svg>`;
+    const svg = box.querySelector('.net-chart');
+    svg.addEventListener('mousemove', e => {
+      const d = last?.history?.net_lat || [];
+      const r = svg.getBoundingClientRect();
+      const right = r.width - NET_INSET, step = (right - NET_INSET) / (NET_POINTS - 1), off = right - (d.length - 1) * step;
+      const i = Math.round((e.clientX - r.left - off) / step);
+      netHover = i >= 0 && i < d.length && d[i] != null ? i : null;
+      renderInternet(last);
+    });
+    svg.addEventListener('mouseleave', () => { netHover = null; renderInternet(last); });
+  }
+  // The current ms lives at the right of the battery row, in the Terminal card.
+  const ms = $('net-ms');
+  ms.className = 'bat-net' + (n && !ok ? ' off' : '');
+  const icon = wifiIcon(s.netbook?.net?.signal, n == null || ok);
+  ms.innerHTML = n == null ? `${icon}<span>Internet …</span>`
+    : !ok ? `${icon}<span>Internet <b>picat de ${dur(s.now - n.down_since)}</b></span>`
+    : `${icon}<span>Internet <b>${n.latency != null ? Math.round(n.latency) + ' ms' : 'conectat'}</b></span>`;
+  drawNetChart(box.querySelector('.net-chart'), data, ok !== false);
+}
+
+const NET_POINTS = 90;
+const NET_INSET = 7;  // keeps the 4px end dot (+2px ring) inside the drawing on every side
+
+function drawNetChart(svg, data, ok) {
+  const w = svg.clientWidth || 300, h = svg.clientHeight || 38;
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  // Scale to the usual values (90th percentile), not the rare spike, so normal
+  // variation stays readable; spikes just touch the top edge.
+  const vals = data.filter(v => v != null).sort((a, b) => a - b);
+  const typical = vals.length ? vals[Math.floor(vals.length * 0.9)] : 1;
+  const top = NET_STEPS.find(x => x >= typical * 1.4) || NET_STEPS.at(-1);
+  const pad = NET_INSET, right = w - NET_INSET;
+  const step = (right - pad) / (NET_POINTS - 1), off = right - (data.length - 1) * step;
+  const y = v => h - pad - Math.min(v, top) / top * (h - 2 * pad);
+  const col = ok ? 'var(--green)' : 'var(--red)';
+  let out = '';
+  // Missed checks (null) break the line instead of being drawn as 0.
+  let path = '', pen = false, lastPt = null;
+  data.forEach((v, i) => {
+    if (v == null) { pen = false; return; }
+    const pt = [off + i * step, y(v)];
+    path += (pen ? 'L' : 'M') + pt[0].toFixed(1) + ' ' + pt[1].toFixed(1);
+    pen = true; lastPt = pt;
+  });
+  if (path) {
+    out += `<path d="${path}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+  if (netHover != null && data[netHover] != null) {
+    const hx = off + netHover * step;
+    const tx = hx > w - 60 ? hx - 8 : hx + 8, anchor = hx > w - 60 ? 'end' : 'start';
+    out += `<text x="${tx}" y="11" text-anchor="${anchor}" fill="var(--text)" font-size="11" font-weight="600">${Math.round(data[netHover])} ms</text>
+      <line x1="${hx}" x2="${hx}" y1="0" y2="${h}" stroke="var(--muted)" stroke-width="1"/>
+      <circle cx="${hx}" cy="${y(data[netHover])}" r="4" fill="${col}" stroke="var(--bg)" stroke-width="2"/>`;
+  } else if (lastPt) {
+    out += `<circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="4" fill="${col}" stroke="var(--bg)" stroke-width="2"/>`;
+  }
+  svg.innerHTML = out;
 }
 
 function renderEvents(list) {
@@ -1050,6 +1145,20 @@ $('devices').addEventListener('click', async e => {
   }, act === 'connect' ? 4000 : 600);
 });
 
+function redrawDiscovered() {
+  const disc = $('discovered');
+  if (!last) return;
+  const html = discoveredCard(last.discovered || [], last.last_scan, last.now);
+  disc.innerHTML = html; disc.dataset.html = html;
+}
+
+// Enter adds, Escape closes the open "add" form.
+$('discovered').addEventListener('keydown', e => {
+  if (!e.target.matches('.disc.open input')) return;
+  if (e.key === 'Enter') { e.preventDefault(); e.target.closest('.disc').querySelector('[data-act=add]').click(); }
+  if (e.key === 'Escape') { discOpen = null; redrawDiscovered(); }
+});
+
 $('discovered').addEventListener('click', async e => {
   const chip = e.target.closest('button[data-kind]');
   if (chip) {
@@ -1059,6 +1168,17 @@ $('discovered').addEventListener('click', async e => {
   }
   const btn = e.target.closest('button[data-act]');
   if (!btn || btn.disabled) return;
+  const act = btn.dataset.act;
+  if (act === 'open' || act === 'cancel' || act === 'unknown') {
+    if (act === 'unknown') discShowUnknown = !discShowUnknown;
+    else discOpen = act === 'open' ? btn.closest('.disc').dataset.mac : null;
+    redrawDiscovered();
+    if (act === 'open') {
+      const input = $('discovered').querySelector('.disc.open input');
+      input?.focus(); input?.select();
+    }
+    return;
+  }
   if (btn.dataset.act === 'scan') {
     // A sweep takes ~4 s; keep the refresh icon spinning until the new results are in.
     return busy(btn, async () => {
@@ -1080,6 +1200,7 @@ $('discovered').addEventListener('click', async e => {
         });
         const j = await r.json();
         toast(j.ok ? `„${name}” a fost adăugat` : 'Nu s-a putut adăuga', j.ok ? 'ok' : 'err');
+        if (j.ok) discOpen = null;
         document.activeElement.blur();
         await poll();
       } catch { toast('Eroare: serverul nu răspunde', 'err'); }
