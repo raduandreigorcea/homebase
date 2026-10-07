@@ -1,0 +1,1091 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homebase</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2310151c'/%3E%3Cpath d='M8 17l8-7 8 7v7H8z' fill='none' stroke='%2334d399' stroke-width='2.5' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0f14;
+    --panel: #121820;
+    --panel-2: #18202a;
+    --line: #232d39;
+    --text: #e6edf3;
+    --muted: #8b98a7;
+    --dim: #5b6876;
+    --green: #34d399;
+    --red: #f87171;
+    --amber: #fbbf24;
+    --blue: #60a5fa;
+    --violet: #a78bfa;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 14px/1.45 "Inter", "Cantarell", system-ui, sans-serif;
+    padding: 24px;
+    min-height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; margin: 0 auto 24px; max-width: 1320px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand svg { width: 34px; height: 34px; }
+  .brand h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+  .brand p { margin: 0; color: var(--muted); font-size: 12px; }
+  .clock { text-align: right; }
+  .clock .t { font-size: 26px; font-weight: 600; letter-spacing: .5px; }
+  .clock .d { color: var(--muted); font-size: 12px; text-transform: capitalize; }
+
+  main {
+    max-width: 1320px; margin: 0 auto;
+    display: grid; gap: 20px; align-items: start;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  #devices { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 18px;
+  }
+  .card h2 {
+    margin: 0 0 14px; font-size: 12px; font-weight: 600;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .stack { display: grid; gap: 16px; align-content: start; }
+
+  /* Device card */
+  .device { display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 18px; transition: border-color .15s; }
+  .device:hover { border-color: #2c3846; }
+  .dev-head { display: flex; align-items: flex-start; gap: 12px; }
+  .dev-icon {
+    width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
+    background: var(--panel-2); flex: none;
+  }
+  .dev-icon svg { width: 22px; height: 22px; stroke: var(--text); }
+  .dev-title { min-width: 0; flex: 1; }
+  .dev-name { font-size: 16px; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dev-sub { color: var(--muted); font-size: 12px; }
+  .dev-tools { display: flex; gap: 2px; margin: -4px -6px 0 0; opacity: .55; transition: opacity .15s; }
+  .device:hover .dev-tools, .dev-tools:focus-within { opacity: 1; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 9px 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    background: var(--panel-2); color: var(--muted); white-space: nowrap; margin-top: 6px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex: none; }
+  .pill.on { color: var(--text); }
+  .pill.on .dot { background: var(--green); box-shadow: 0 0 0 3px rgba(52, 211, 153, .18); }
+  .pill.off .dot { background: var(--red); }
+  .device.is-off .dev-icon, .device.is-off .facts { opacity: .5; }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 28px; }
+  .facts div { min-width: 0; }
+  .facts span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 2px; }
+  .facts b { font-size: 15px; font-weight: 600; white-space: nowrap; }
+
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+  .device .actions button { padding: 9px 14px; font-size: 13px; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer; border-radius: 10px;
+    padding: 11px 16px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  button:hover { border-color: #33404f; background: #1d2632; }
+  button.primary { background: var(--green); color: #052e1f; border-color: transparent; }
+  button.primary:hover { background: #4ade80; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button { transition: background .12s, border-color .12s, transform .08s; }
+  button:active:not(:disabled) { transform: scale(.96); }
+  /* While a click is being handled: spinner instead of the icon, no double clicks. */
+  button.busy { pointer-events: none; }
+  button.busy > svg { display: none; }
+  button.busy::before { content: ''; width: 14px; height: 14px; flex: none; border-radius: 50%;
+    border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
+  .icon-btn.busy::before, .tv-btn.busy::before { margin: 0 auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--green); border-right-color: transparent;
+          animation: spin .7s linear infinite; flex: none; }
+  button.primary:disabled { background: var(--panel-2); color: var(--muted); opacity: 1; }
+  button svg { width: 16px; height: 16px; }
+
+  /* Terminal (this laptop) */
+  .gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .gauge { text-align: center; }
+  .gauge svg { width: 100%; max-width: 120px; height: auto; display: block; margin: 0 auto; }
+  .gauge .lbl { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .gauge .sub { color: var(--dim); font-size: 11px; min-height: 16px; }
+
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: 0; }
+  .row .k { color: var(--muted); }
+  .row .v { font-weight: 600; text-align: right; }
+  .bar { height: 6px; background: var(--panel-2); border-radius: 99px; overflow: hidden; margin-top: 6px; }
+  .bar i { display: block; height: 100%; background: var(--blue); border-radius: 99px; }
+
+  .spark { width: 100%; height: 56px; display: block; }
+  .device .spark { height: 30px; }
+  .spark-wrap { display: grid; gap: 4px; }
+  .spark-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .spark-head b { color: var(--text); font-weight: 600; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(16px);
+    display: flex; align-items: center; gap: 12px; max-width: min(460px, calc(100vw - 32px));
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 18px 12px 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+    opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 30;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast .ti { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+  .toast .ti svg { width: 16px; height: 16px; }
+  .toast.ok .ti { background: rgba(52, 211, 153, .15); color: var(--green); }
+  .toast.err .ti { background: rgba(248, 113, 113, .15); color: var(--red); }
+  .toast.info .ti { background: rgba(96, 165, 250, .15); color: var(--blue); }
+
+  .dlg-back { position: fixed; inset: 0; background: rgba(4, 7, 10, .66); display: grid; place-items: center;
+              padding: 16px; z-index: 20; opacity: 0; transition: opacity .15s; }
+  .dlg-back.show { opacity: 1; }
+  .dlg { width: min(400px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+         padding: 22px; box-shadow: 0 20px 48px rgba(0, 0, 0, .5); transform: scale(.96); transition: transform .15s; }
+  .dlg-back.show .dlg { transform: scale(1); }
+  .dlg .di { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 14px; }
+  .dlg .di svg { width: 22px; height: 22px; stroke: currentColor; }
+  .dlg .di.info { background: rgba(96, 165, 250, .14); color: var(--blue); }
+  .dlg .di.danger { background: rgba(248, 113, 113, .14); color: var(--red); }
+  .dlg h3 { margin: 0 0 6px; font-size: 17px; }
+  .dlg p { margin: 0; color: var(--muted); }
+  .dlg-field { display: block; margin-top: 14px; }
+  .dlg-field span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .dlg-field small { display: block; font-size: 11px; color: var(--dim); margin-top: 5px; }
+  .dlg input { width: 100%; font: inherit; font-size: 16px; letter-spacing: .5px; color: var(--text);
+               background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
+  .dlg input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
+  .dlg .err-msg { color: var(--red); font-size: 12px; margin-top: 6px; min-height: 16px; }
+  .dlg .row-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  button.danger { background: var(--red); color: #3b0909; border-color: transparent; }
+  button.danger:hover { background: #fca5a5; }
+  .stale { color: var(--amber); font-size: 12px; text-transform: none; letter-spacing: 0; font-weight: 500; }
+  .icon-btn { padding: 7px; border-radius: 8px; background: transparent; border-color: transparent; color: var(--muted); }
+  .icon-btn:hover { color: var(--text); background: var(--panel-2); border-color: var(--line); }
+  .dev-head .pill { margin-left: auto; }
+  .dev-icon.sm { width: 40px; height: 40px; border-radius: 10px; }
+  .dev-icon.sm svg { width: 22px; height: 22px; }
+  .disc { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 12px; align-items: center;
+          padding: 12px 0; border-top: 1px solid var(--line); }
+  .disc:first-of-type { border-top: 0; padding-top: 0; }
+  .disc-info { min-width: 0; overflow-wrap: anywhere; }
+  .disc-form { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+  .disc-form input {
+    font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 9px 12px; min-width: 0;
+  }
+  .disc-form input { flex: 1 1 180px; }
+  .disc-form input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
+  .disc-form button { padding: 9px 14px; }
+  .kinds { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; order: -1; }
+  .disc-form .kind { padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .disc-form .kind.sel { background: rgba(52, 211, 153, .14); border-color: var(--green); color: var(--green); }
+  .disc-head { display: inline-flex; align-items: center; gap: 6px; }
+  .muted-sm { color: var(--dim); font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 500; }
+  .top-right { display: flex; align-items: center; gap: 18px; }
+  .net-chip {
+    display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px;
+    background: var(--panel); border: 1px solid var(--line); font-size: 13px; white-space: nowrap;
+  }
+  .net-chip .net-lbl { color: var(--muted); }
+  .net-chip b { font-weight: 600; }
+  .net-chip.on b { color: var(--green); }
+  .net-chip.on .dot { background: var(--green); box-shadow: 0 0 0 3px rgba(52, 211, 153, .18); }
+  .net-chip.off .dot { background: var(--red); }
+  .net-chip.off b { color: var(--red); }
+  .net-chip .net-spark { width: 64px; height: 20px; }
+  @media (max-width: 560px) { .net-chip .net-spark, .net-chip .net-lbl { display: none; } }
+  .ev { display: grid; grid-template-columns: 54px 10px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 7px 0; }
+  .ev time { color: var(--dim); font-size: 12px; }
+  .ev i { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); align-self: center; }
+  .ev.on i { background: var(--green); } .ev.off i { background: var(--red); } .ev.new i { background: var(--amber); }
+  .ev-day { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin: 10px 0 2px; }
+  .ev-day:first-child { margin-top: 0; }
+  .bat { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .bat svg { width: 18px; height: 18px; flex: none; }
+  .bat b { color: var(--text); font-weight: 600; }
+  .term-modal { position: fixed; inset: 0; background: rgba(4, 7, 10, .72); display: grid; place-items: center; padding: 24px; z-index: 10; }
+  .term-modal[hidden] { display: none; }
+  .term-win { width: min(1100px, 100%); height: min(720px, 100%); display: flex; flex-direction: column;
+              background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .term-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 8px 16px;
+              background: var(--panel); border-bottom: 1px solid var(--line); }
+  .term-title { display: inline-flex; align-items: center; gap: 10px; }
+  .term-title svg { width: 16px; height: 16px; color: var(--green); }
+  .term-status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-left: 14px; }
+  .term-status .dot { background: var(--green); }
+  .term-status.ended .dot { background: var(--dim); }
+  .term-loading { height: 100%; display: grid; place-content: center; justify-items: center; gap: 12px; color: var(--muted); }
+  .term-loading .spin { width: 26px; height: 26px; border-width: 3px; }
+  .term-actions { display: flex; gap: 8px; margin-left: auto; margin-right: 8px; }
+  .term-actions button { padding: 6px 12px; font-size: 13px; }
+  .term-body { flex: 1; min-height: 0; padding: 10px 6px 6px 12px; }
+  .term-body .xterm { height: 100%; }
+  .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+  .meter-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .meter-head b { color: var(--text); font-weight: 600; font-size: 14px; }
+  .meter .bar { margin-top: 6px; }
+  .meter-sub { color: var(--dim); font-size: 11px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cmd { display: flex; gap: 8px; align-items: stretch; margin-top: 14px; }
+  .cmd code { flex: 1; min-width: 0; font: 13px/1.4 "JetBrains Mono", "DejaVu Sans Mono", monospace; color: var(--green);
+              background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; overflow-wrap: anywhere; user-select: all; }
+  .dlg ol { margin: 12px 0 0; padding-left: 20px; color: var(--muted); }
+  .dlg ol li { margin: 4px 0; }
+  .dlg ol b { color: var(--text); }
+  .tv { display: grid; gap: 14px; }
+  .tv-now { display: grid; gap: 4px; min-width: 0; }
+  .tv-now b { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tv-state { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .tv-state.on { color: var(--green); }
+  .tv-prog { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); }
+  .tv-prog .bar { margin: 0; }
+  .tv-ctl { display: flex; justify-content: center; align-items: center; gap: 12px; }
+  .tv-btn { width: 42px; height: 42px; padding: 0; justify-content: center; border-radius: 50%; }
+  .tv-btn svg { width: 18px; height: 18px; }
+  .tv-btn.big { width: 54px; height: 54px; background: var(--green); color: #052e1f; border-color: transparent; }
+  .tv-btn.big:hover { background: #4ade80; }
+  .tv-btn.big svg { width: 22px; height: 22px; }
+  .tv-btn.is-muted { color: var(--red); }
+  .tv-vol { display: grid; grid-template-columns: auto 1fr 34px; gap: 12px; align-items: center; }
+  .tv-vol .tv-btn { width: 36px; height: 36px; }
+  .tv-vol-n { text-align: right; font-weight: 600; }
+  .tv-range { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 99px; outline: none; cursor: pointer;
+              background: linear-gradient(to right, var(--green) var(--p), var(--panel-2) var(--p)); border: 1px solid var(--line); }
+  .tv-range:disabled { opacity: .45; cursor: not-allowed; }
+  .tv-range::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--text); border: 3px solid var(--green); }
+  .tv-range::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--text); border: 3px solid var(--green); }
+  .os-tag { color: var(--green); font-weight: 600; }
+  .welcome { grid-column: 1 / -1; padding: 22px; }
+  .welcome h3 { margin: 0 0 6px; font-size: 16px; }
+  .welcome p { margin: 0; color: var(--muted); }
+  .welcome b { color: var(--text); font-weight: 600; }
+  footer { max-width: 1200px; margin: 18px auto 0; color: var(--dim); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#121820" stroke="#232d39"/><path d="M8 17l8-7 8 7v7H8z" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linejoin="round"/></svg>
+    <div>
+      <h1>Homebase</h1>
+      <p>Panoul tău de control</p>
+    </div>
+  </div>
+  <div class="top-right">
+    <div class="net-chip" id="inet" title="Internet"></div>
+    <div class="clock"><div class="t" id="clock">--:--</div><div class="d" id="date"></div></div>
+  </div>
+</header>
+
+<main>
+  <div class="stack">
+    <div id="devices"></div>
+    <div id="discovered"></div>
+  </div>
+
+  <div class="stack">
+    <section class="card">
+      <h2>Terminal <span id="stale"></span></h2>
+      <div class="gauges">
+        <div class="gauge"><svg viewBox="0 0 120 80" id="g-cpu"></svg><div class="lbl">Procesor</div><div class="sub" id="g-cpu-sub"></div></div>
+        <div class="gauge"><svg viewBox="0 0 120 80" id="g-mem"></svg><div class="lbl">Memorie</div><div class="sub" id="g-mem-sub"></div></div>
+        <div class="gauge"><svg viewBox="0 0 120 80" id="g-temp"></svg><div class="lbl">Temperatură</div><div class="sub" id="g-temp-sub"></div></div>
+      </div>
+      <div class="bat" id="bat"></div>
+    </section>
+
+    <section class="card">
+      <h2>Ce s-a întâmplat</h2>
+      <div id="events"></div>
+    </section>
+  </div>
+</main>
+
+<footer>Se actualizează la fiecare 2 secunde · rulează local pe terminal</footer>
+<div class="toast" id="toast"></div>
+
+<div class="term-modal" id="term-modal" hidden>
+  <div class="term-win">
+    <div class="term-bar">
+      <span class="term-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5M12 19h8"/></svg><b id="term-name"></b><span class="muted-sm" id="term-host"></span><span class="term-status" id="term-status"></span></span>
+      <span class="term-actions" id="term-actions"></span>
+      <button class="icon-btn" id="term-close" title="Închide terminalul">✕</button>
+    </div>
+    <div class="term-body" id="term-body"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const ICONS = {
+  desktop: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
+  laptop: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="10" rx="1.5"/><path d="M2 19h20"/></svg>',
+  pi: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>',
+  tv: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="13" rx="2"/><path d="M8 22h8"/></svg>',
+  router: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="13" width="20" height="7" rx="2"/><path d="M6 17h.01M10 17h.01M8 9a6 6 0 0 1 8 0M5 6a10 10 0 0 1 14 0"/></svg>',
+  other: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14M12 17h.01"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  terminal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5M12 19h8"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>',
+  connect: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>',
+  power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v9M6.4 6.4a8 8 0 1 0 11.2 0"/></svg>',
+};
+
+function bytes(n, perSec) {
+  if (n == null) return '–';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return (n < 10 && i ? n.toFixed(1) : Math.round(n)) + ' ' + u[i] + (perSec ? '/s' : '');
+}
+function dur(s) {
+  s = Math.floor(s);
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  if (d) return `${d}z ${h}h`;
+  if (h) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+function color(pct, warn = 70, crit = 90) {
+  return pct >= crit ? 'var(--red)' : pct >= warn ? 'var(--amber)' : 'var(--green)';
+}
+
+function gauge(el, pct, text, col) {
+  const r = 46, cx = 60, cy = 62, len = Math.PI * r;
+  const p = Math.max(0, Math.min(100, pct || 0)) / 100;
+  el.innerHTML = `
+    <path d="M${cx - r} ${cy} A${r} ${r} 0 0 1 ${cx + r} ${cy}" fill="none" stroke="#232d39" stroke-width="9" stroke-linecap="round"/>
+    <path d="M${cx - r} ${cy} A${r} ${r} 0 0 1 ${cx + r} ${cy}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round"
+          stroke-dasharray="${len}" stroke-dashoffset="${len * (1 - p)}" style="transition:stroke-dashoffset .6s"/>
+    <text x="${cx}" y="${cy - 4}" text-anchor="middle" fill="#e6edf3" font-size="20" font-weight="600">${text}</text>`;
+}
+
+function batteryIcon(b) {
+  const w = Math.max(1, Math.round(12 * b.pct / 100));
+  const col = b.pct <= 15 && b.status === 'Discharging' ? 'var(--red)' : 'currentColor';
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="2.5" y="7" width="17" height="10" rx="2.5"/><path d="M21.5 10.5v3" stroke-linecap="round"/><rect x="5" y="9.5" width="${w}" height="5" rx="1" fill="${col}" stroke="none"/>${b.status === 'Charging' ? '<path d="M11.5 8.5l-2 4h3l-2 3" stroke="var(--bg)" stroke-width="1.6" stroke-linecap="round"/>' : ''}</svg>`;
+}
+
+function spark(el, series, max) {
+  const w = el.clientWidth || 300, h = el.clientHeight || 56;
+  el.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  let out = '';
+  for (const { data, col } of series) {
+    if (!data || data.length < 2) continue;
+    const m = max ?? Math.max(1, ...series.flatMap(s => s.data || []));
+    const step = w / (90 - 1), off = w - (data.length - 1) * step;
+    const pts = data.map((v, i) => [off + i * step, h - 3 - ((v ?? 0) / m) * (h - 8)]);
+    const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('');
+    out += `<path d="${line} L${pts.at(-1)[0]} ${h} L${pts[0][0]} ${h}Z" fill="${col}" opacity=".12"/>`;
+    out += `<path d="${line}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round"/>`;
+  }
+  el.innerHTML = out;
+}
+
+function deviceCard(d, st, hist, now, stats, tv) {
+  const online = st?.online;
+  const checked = st != null && st.online != null;
+  const pillCls = !checked ? '' : online ? 'on' : 'off';
+  const pillTxt = !checked ? 'Se verifică…' : online ? 'Pornit' : 'Oprit';
+  const lat = online ? (st.latency != null ? `${st.latency} ms` : 'în rețea') : '–';
+  // The agent knows the real boot time; without it we only know when we first saw it on.
+  const since = stats?.boot ? dur(now - stats.boot) : online && st.since ? dur(now - st.since) : '–';
+  // The TV only takes commands for what it plays over DLNA, so the controls
+  // only show up then; otherwise the card just shows its volume.
+  const tvActive = tv && ['PLAYING', 'PAUSED_PLAYBACK'].includes(tv.state);
+  const third = d.rustdesk_id
+    ? `<div><span>ID RustDesk</span><b>${d.rustdesk_id.replace(/\B(?=(\d{3})+$)/g, ' ')}</b></div>`
+    : tv
+    ? `<div><span>Volum</span><b>${tv.mute ? 'mut' : tv.volume}</b></div>`
+    : '';
+  const connectBtn = d.dlna
+    ? (tv && !tvActive ? `<button class="primary" data-act="tvconnect">${ICONS.connect} Conectează-te</button>` : '')
+    : d.rustdesk_id
+    ? `<button class="primary" data-act="connect" ${online ? '' : 'disabled'}>${ICONS.connect} Conectează-te</button>`
+    : d.ssh
+    ? `<button class="primary" data-act="terminal" ${online ? '' : 'disabled'}>${ICONS.terminal} Deschide terminal</button>`
+    : ['desktop', 'laptop'].includes(d.kind)
+    ? `<button data-act="setrd">${ICONS.connect} Setează ID RustDesk</button>`
+    : '';
+  // Waking only makes sense when it's off, so the button only shows then.
+  const wakeBtn = d.has_wake && st?.online === false ? `<button data-act="wake">${ICONS.power} Pornește de la distanță</button>` : '';
+  const statsBtn = last?.agents_enabled && !stats && online && ['desktop', 'laptop'].includes(d.kind)
+    ? `<button data-act="agent">${ICONS.chart} ${d.has_agent ? 'Reconectează statisticile' : 'Activează statistici'}</button>` : '';
+  // Response time is mostly noise; it only earns a (quiet) line when the device is up.
+  const latLine = online && d.probe_port && !tv && !stats;
+  return `
+  <section class="card device ${checked && !online ? 'is-off' : ''}" data-id="${esc(d.id)}">
+    <div class="dev-head">
+      <div class="dev-icon">${ICONS[d.kind] || ICONS.other}</div>
+      <div class="dev-title">
+        <div class="dev-name" title="${esc(d.name)}">${esc(d.name)}</div>
+        <div class="dev-sub">${d.os ? `<span class="os-tag">${esc(d.os.replace(' (DLNA)', ''))}</span> · ` : ''}${esc(d.host)}</div>
+        <span class="pill ${pillCls}"><span class="dot"></span>${pillTxt}</span>
+      </div>
+      <div class="dev-tools">
+        <button class="icon-btn" data-act="edit" title="Setări">${ICONS.edit}</button>
+        <button class="icon-btn" data-act="remove" title="Scoate din panou">${ICONS.x}</button>
+      </div>
+    </div>
+    ${online ? `<div class="facts">
+      ${st.latency != null ? `<div><span>Răspuns</span><b>${Math.round(st.latency)} ms</b></div>` : ''}
+      <div><span>Pornit de</span><b>${since}</b></div>
+      ${third}
+    </div>` : ''}
+    ${tvActive ? tvBlock(d, tv) : stats ? statsBlock(d, stats) : latLine ? `<svg class="spark" id="lat-${esc(d.id)}" preserveAspectRatio="none" aria-label="Timp de răspuns, ultimele 3 minute"></svg>` : ''}
+    ${connectBtn || wakeBtn || statsBtn ? `<div class="actions">${connectBtn}${wakeBtn}${statsBtn}</div>` : ''}
+  </section>`;
+}
+
+const TV_ICONS = {
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/></svg>',
+  stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>',
+  fwd: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>',
+  vol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
+  muted: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M22 9l-6 6M16 9l6 6"/></svg>',
+};
+
+function clock(sec) {
+  if (sec == null) return '–:––';
+  sec = Math.max(0, Math.floor(sec));
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s2 = String(sec % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${s2}` : `${m}:${s2}`;
+}
+
+function tvBlock(d, tv) {
+  const playing = tv.state === 'PLAYING', paused = tv.state === 'PAUSED_PLAYBACK';
+  const loaded = playing || paused;
+  const label = playing ? 'Rulează' : paused ? 'Pe pauză' : tv.state === 'STOPPED' ? 'Oprit' : 'Nimic nu rulează';
+  const pct = loaded && tv.dur ? Math.min(100, 100 * tv.pos / tv.dur) : 0;
+  return `
+    <div class="tv">
+      <div class="tv-now">
+        <span class="tv-state ${playing ? 'on' : ''}">${label}</span>
+        <b>${loaded ? esc(tv.title || 'Fără titlu') : '<span class="muted-sm">Controlul merge doar pentru ce trimiți pe TV prin DLNA, nu și în YouTube sau alte aplicații ale televizorului</span>'}</b>
+      </div>
+      ${loaded && tv.dur ? `<div class="tv-prog"><span>${clock(tv.pos)}</span><div class="bar"><i style="width:${pct}%"></i></div><span>${clock(tv.dur)}</span></div>` : ''}
+      <div class="tv-ctl">
+        <button class="tv-btn" data-tv="seek" data-v="-10" title="Înapoi 10 secunde" ${loaded ? '' : 'disabled'}>${TV_ICONS.back}</button>
+        <button class="tv-btn big" data-tv="${playing ? 'pause' : 'play'}" title="${playing ? 'Pauză' : 'Redă'}" ${loaded || tv.state === 'STOPPED' ? '' : 'disabled'}>${playing ? TV_ICONS.pause : TV_ICONS.play}</button>
+        <button class="tv-btn" data-tv="seek" data-v="10" title="Înainte 10 secunde" ${loaded ? '' : 'disabled'}>${TV_ICONS.fwd}</button>
+        <button class="tv-btn" data-tv="stop" title="Stop" ${loaded ? '' : 'disabled'}>${TV_ICONS.stop}</button>
+      </div>
+      <div class="tv-vol">
+        <button class="tv-btn ${tv.mute ? 'is-muted' : ''}" data-tv="mute" title="${tv.mute ? 'Pornește sunetul' : 'Fără sonor'}" ${loaded ? '' : 'disabled'}>${tv.mute ? TV_ICONS.muted : TV_ICONS.vol}</button>
+        <input type="range" class="tv-range" min="0" max="100" value="${tv.volume}" style="--p:${tv.volume}%" ${loaded ? '' : 'disabled title="Televizorul permite schimbarea volumului doar în timpul redării prin DLNA"'}>
+        <b class="tv-vol-n">${tv.mute ? 'mut' : tv.volume}</b>
+      </div>
+    </div>`;
+}
+
+function meter(label, pct, detail, warn = 70, crit = 90) {
+  if (pct == null) return '';
+  const p = Math.max(0, Math.min(100, pct));
+  return `<div class="meter"><div class="meter-head"><span>${label}</span><b>${Math.round(p)}%</b></div>
+    <div class="bar"><i style="width:${p}%;background:${color(p, warn, crit)}"></i></div>
+    <div class="meter-sub">${detail || '&nbsp;'}</div></div>`;
+}
+
+function statsBlock(d, x) {
+  const memUsed = x.mem_total - x.mem_free, diskUsed = x.disk_total - x.disk_free;
+  return `<div class="stats">
+      ${meter('Procesor', x.cpu, x.top_name ? `cel mai activ: ${esc(x.top_name)} ${Math.round(x.top_cpu)}%` : '')}
+      ${meter('Memorie', 100 * memUsed / x.mem_total, `${bytes(memUsed)} din ${bytes(x.mem_total)}`, 75, 90)}
+      ${meter('Placă video', x.gpu, '')}
+      ${meter('Disc C:', 100 * diskUsed / x.disk_total, `${bytes(x.disk_free)} liber`, 85, 95)}
+    </div>
+    <div class="spark-wrap">
+      <div class="spark-head"><span>Procesor · ultimele minute</span><span>↓ <b>${bytes(x.net_down, true)}</b> &nbsp;↑ <b>${bytes(x.net_up, true)}</b></span></div>
+      <svg class="spark" id="cpu-${esc(d.id)}" preserveAspectRatio="none"></svg>
+    </div>`;
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
+// Type picked per discovered device; kept outside the DOM so the 2 s refresh doesn't reset it.
+const chosenKind = {};
+const kindOf = x => chosenKind[x.mac] || (KINDS.some(([k]) => k === x.kind) ? x.kind : 'other');
+
+const KINDS = [['desktop', 'Calculator'], ['laptop', 'Laptop'], ['pi', 'Raspberry Pi'], ['tv', 'TV / media'], ['other', 'Altceva']];
+
+// Windows reports names in capitals ("OFFICE", "DESKTOP-4F2K"); make the plain ones readable.
+function prettyName(n) {
+  if (!n) return '';
+  return /^[A-Z][A-Z]+$/.test(n) ? n[0] + n.slice(1).toLowerCase() : n;
+}
+
+function discoveredCard(list, lastScan, now) {
+  const ago = lastScan ? Math.max(0, Math.round((now - lastScan) / 60)) : null;
+  const when = ago == null ? 'se caută…' : ago < 1 ? 'acum' : `acum ${ago} min`;
+  const rows = list.filter(x => x.kind !== 'router').map(x => {
+    const nice = prettyName(x.name || x.hostname);
+    const guess = nice || (x.kind === 'pi' ? 'Raspberry Pi' : x.kind === 'tv' ? 'Televizor' : '');
+    return `
+    <div class="disc" data-ip="${esc(x.ip)}" data-mac="${esc(x.mac)}">
+      <div class="dev-icon sm">${ICONS[x.kind] || ICONS.other}</div>
+      <div class="disc-info">
+        <div><b>${esc(nice || x.label || x.vendor || 'Dispozitiv necunoscut')}</b></div>
+        <div class="dev-sub">${x.label && nice ? `<span class="os-tag">${esc(x.label)}</span> · ` : ''}${esc(x.ip)} · ${esc(x.mac)}</div>
+      </div>
+      <div class="disc-form">
+        <input type="text" placeholder="Nume (ex: PC-ul din sufragerie)" value="${esc(guess)}" maxlength="40">
+        <div class="kinds">${KINDS.map(([k, l]) => `<button type="button" class="kind${k === kindOf(x) ? ' sel' : ''}" data-kind="${k}">${l}</button>`).join('')}</div>
+        <button data-act="add">${ICONS.plus} Adaugă</button>
+      </div>
+    </div>`;
+  }).join('');
+  return `
+  <section class="card" id="disc-card">
+    <h2>Găsite în rețea <span class="disc-head"><span class="muted-sm">ultima căutare: ${when}</span>
+      <button class="icon-btn" data-act="scan" title="Caută din nou">${ICONS.refresh}</button></span></h2>
+    ${rows || '<div class="dev-sub">Nimic nou în rețea. Când pornești un dispozitiv nou (ex: un Raspberry Pi), apare aici în cel mult 30 de secunde.</div>'}
+  </section>`;
+}
+
+let last = null, lastOk = 0;
+// Visual feedback for any click whose effect isn't instant: spinner on the button until done.
+async function busy(btn, fn, minMs = 0) {
+  const t0 = Date.now();
+  btn?.classList.add('busy');
+  try { return await fn(); }
+  finally {
+    const left = minMs - (Date.now() - t0);
+    if (left > 0) await new Promise(r => setTimeout(r, left));
+    btn?.classList.remove('busy');
+  }
+}
+
+let tvDragging = false;  // true while the TV volume slider is held: skip redraws
+
+function renderInternet(s) {
+  const n = s.internet;
+  const ok = n?.online;
+  const cls = n == null ? '' : ok ? 'on' : 'off';
+  const label = n == null ? 'Se verifică…'
+    : ok ? (n.latency != null ? `${Math.round(n.latency)} ms` : 'conectat')
+    : `picat de ${dur(s.now - n.down_since)}`;
+  const tip = n == null ? 'Internet' : ok
+    ? `Internet funcțional${n.ssid ? ' · ' + n.ssid : ''}${n.since ? ' · stabil de ' + dur(s.now - n.since) : ''}`
+    : 'Internetul nu merge';
+  const box = $('inet');
+  box.className = 'net-chip ' + cls;
+  box.title = tip;
+  const html = `<span class="dot"></span><span class="net-lbl">Internet</span><b>${label}</b><svg class="net-spark" id="s-inet" preserveAspectRatio="none"></svg>`;
+  if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
+  spark($('s-inet'), [{ data: s.history?.net_lat, col: ok ? 'var(--green)' : 'var(--red)' }]);
+}
+
+function renderEvents(list) {
+  if (!list.length) { $('events').innerHTML = '<div class="dev-sub">Nimic deocamdată. Aici apar porniri, opriri, căderi de internet și dispozitive noi.</div>'; return; }
+  const today = new Date().toDateString(), yest = new Date(Date.now() - 864e5).toDateString();
+  let day = null, html = '';
+  for (const e of list) {
+    const d = new Date(e.t * 1000), ds = d.toDateString();
+    if (ds !== day) {
+      day = ds;
+      html += `<div class="ev-day">${ds === today ? 'Azi' : ds === yest ? 'Ieri' : d.toLocaleDateString('ro-RO', { day: 'numeric', month: 'long' })}</div>`;
+    }
+    html += `<div class="ev ${esc(e.kind)}"><time>${d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}</time><i></i><span>${esc(e.text)}</span></div>`;
+  }
+  if ($('events').dataset.html !== html) { $('events').innerHTML = html; $('events').dataset.html = html; }
+}
+
+let termPreloaded = false;
+
+function render(s) {
+  // Load the terminal in the background once there's something to SSH into, so the first click is instant.
+  if (!termPreloaded && s.devices?.some(d => d.ssh)) {
+    termPreloaded = true;
+    setTimeout(() => loadTerminalLib().catch(() => {}), 3000);
+  }
+  const nb = s.netbook || {};
+  const h = s.history || {};
+
+  // Devices
+  const html = s.devices.map(d => deviceCard(d, s.status[d.id], h['lat:' + d.id], s.now, s.stats?.[d.id], s.tv?.[d.id])).join('');
+  const box = $('devices');
+  const empty = `<section class="card welcome"><h3>Bun venit în Homebase</h3>
+    <p>Aici apar dispozitivele tale. Alege-le din lista <b>Găsite în rețea</b> de mai jos și apasă <b>Adaugă</b>.</p></section>`;
+  const out = html || empty;
+  if (box.dataset.html !== out && !tvDragging && !box.querySelector('.busy')) { box.innerHTML = out; box.dataset.html = out; }
+
+  // Discovered devices: don't redraw while the user is typing a name.
+  const disc = $('discovered');
+  const dhtml = discoveredCard(s.discovered || [], s.last_scan, s.now);
+  if (disc.dataset.html !== dhtml && !disc.contains(document.activeElement) && !disc.querySelector('.busy')) { disc.innerHTML = dhtml; disc.dataset.html = dhtml; }
+  for (const d of s.devices) {
+    const ce = $('cpu-' + d.id);
+    if (ce) spark(ce, [{ data: h['cpu:' + d.id], col: 'var(--green)' }], 100);
+    const el = $('lat-' + d.id);
+    if (el) spark(el, [{ data: h['lat:' + d.id], col: 'var(--dim)' }]);
+  }
+
+  renderInternet(s);
+  renderEvents((s.events || []).slice(0, 6));
+
+  if (!nb.mem) return;
+
+  gauge($('g-cpu'), nb.cpu, Math.round(nb.cpu) + '%', color(nb.cpu));
+  gauge($('g-mem'), nb.mem.pct, Math.round(nb.mem.pct) + '%', color(nb.mem.pct, 75, 90));
+  $('g-mem-sub').textContent = `${bytes(nb.mem.used)} din ${bytes(nb.mem.total)}`;
+  const t = nb.temps.cpu;
+  gauge($('g-temp'), t ? (t - 30) / 70 * 100 : 0, t ? Math.round(t) + '°' : '–', t ? color(t, 70, 85) : 'var(--dim)');
+
+  const b = nb.battery;
+  $('bat').innerHTML = b ? `${batteryIcon(b)}<span>Baterie <b>${b.pct}%</b> · ${{ Charging: 'se încarcă', Discharging: 'pe baterie', Full: 'plină', 'Not charging': 'în priză' }[b.status] || esc(b.status)}</span>` : '';
+}
+
+async function poll() {
+  try {
+    const r = await fetch('/api/state', { cache: 'no-store' });
+    last = await r.json();
+    lastOk = Date.now();
+    render(last);
+    $('stale').textContent = '';
+  } catch {
+    if (Date.now() - lastOk > 6000) $('stale').innerHTML = '<span class="stale">fără conexiune la server</span>';
+  }
+}
+
+let timer;
+function start() { clearInterval(timer); poll(); timer = setInterval(poll, 2000); }
+document.addEventListener('visibilitychange', () => document.hidden ? clearInterval(timer) : start());
+addEventListener('resize', () => last && render(last));
+start();
+
+function tick() {
+  const d = new Date();
+  $('clock').textContent = d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
+  $('date').textContent = d.toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+tick(); setInterval(tick, 10000);
+
+// --- Built-in terminal (xterm.js, loaded only the first time it's needed) ---
+let termDev = null;
+let term = null, termSid = null, termES = null, termFit = null, termEnded = false, termTail = '';
+let termPending = '', termSending = false;
+
+function loadScript(src) {
+  return new Promise((ok, fail) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = ok; s.onerror = fail;
+    document.head.appendChild(s);
+  });
+}
+
+async function termPost(op, body) {
+  return fetch(`/api/term/${termSid}/${op}`, { method: 'POST', body });
+}
+
+// Keystrokes must arrive in order, so send them one request at a time.
+async function termSend(data) {
+  termPending += data;
+  if (termSending) return;
+  termSending = true;
+  while (termPending && termSid) {
+    const chunk = termPending; termPending = '';
+    try { await termPost('input', chunk); } catch { break; }
+  }
+  termSending = false;
+}
+
+let termLib = null;
+function loadTerminalLib() {
+  if (window.Terminal) return Promise.resolve();
+  if (!termLib) {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = '/vendor/xterm.css';
+    document.head.appendChild(css);
+    termLib = loadScript('/vendor/xterm.js').then(() => loadScript('/vendor/addon-fit.js'))
+      .catch(e => { termLib = null; throw e; });
+  }
+  return termLib;
+}
+
+// Little status next to the device name in the terminal bar.
+function termStatus(text, working, ended = false) {
+  $('term-status').className = 'term-status' + (ended ? ' ended' : '');
+  $('term-status').innerHTML = text ? `${working ? '<span class="spin" style="width:12px;height:12px"></span>' : '<span class="dot"></span>'}${esc(text)}` : '';
+}
+
+async function openTerminal(dev) {
+  if (!dev) return;
+  // Nothing is assumed about the login: the first time, ask which user to sign in as.
+  if (!dev.ssh_user) {
+    const user = await dialog({
+      title: `Cu ce utilizator intri pe ${dev.name}?`, icon: 'terminal', ok: 'Conectează-te',
+      text: 'Cel ales când ai instalat sistemul (în Raspberry Pi Imager: „username”). Îl ține minte; îl poți schimba din ✎.',
+      input: { placeholder: 'ex: pi, admin, ubuntu', validate: v => v ? USER_OK(v) : 'Scrie utilizatorul' },
+    });
+    if (!user || !await saveDevice(dev.id, { ssh_user: user })) return;
+    dev = last.devices.find(x => x.id === dev.id) || { ...dev, ssh_user: user };
+  }
+  termDev = dev;
+  // Show the window right away; loading xterm.js takes a moment on a slow CPU.
+  closeTerminal();
+  $('term-name').textContent = dev.name;
+  $('term-host').textContent = `${dev.ssh_user ? dev.ssh_user + '@' : ''}${dev.host}`;
+  termStatus('Se conectează…', true);
+  $('term-body').innerHTML = '<div class="term-loading"><span class="spin"></span>Se pregătește terminalul…</div>';
+  $('term-modal').hidden = false;
+  try { await loadTerminalLib(); }
+  catch { closeTerminal(); toast('Nu s-a putut încărca terminalul', 'err'); return; }
+  $('term-body').innerHTML = '';
+
+  term = new Terminal({
+    fontFamily: '"JetBrains Mono", "Cascadia Mono", "DejaVu Sans Mono", monospace',
+    fontSize: 14, cursorBlink: true, scrollback: 3000,
+    theme: { background: '#0b0f14', foreground: '#e6edf3', cursor: '#34d399', cursorAccent: '#0b0f14',
+             selectionBackground: '#264f78', black: '#1b2430', brightBlack: '#5b6876',
+             green: '#34d399', brightGreen: '#6ee7b7', red: '#f87171', yellow: '#fbbf24', blue: '#60a5fa', magenta: '#a78bfa' },
+  });
+  termFit = new FitAddon.FitAddon();
+  term.loadAddon(termFit);
+  term.open($('term-body'));
+  termFit.fit();
+  term.focus();
+  term.writeln(`\x1b[90mSe conectează la ${dev.name}…\x1b[0m`);
+  termEnded = false; termTail = '';
+
+  let r;
+  try { r = await (await fetch(`/api/term/start/${encodeURIComponent(dev.id)}`, { method: 'POST' })).json(); } catch {}
+  if (!r?.ok) { term.writeln('\x1b[31mNu s-a putut porni conexiunea.\x1b[0m'); termStatus('Eroare', false, true); return; }
+  termSid = r.sid;
+  termPost('resize', JSON.stringify({ cols: term.cols, rows: term.rows }));
+  term.onResize(({ cols, rows }) => termSid && termPost('resize', JSON.stringify({ cols, rows })));
+  term.onData(d => {
+    if (termEnded) return closeTerminal();
+    termSend(d);
+  });
+
+  const dec = new TextDecoder();
+  termES = new EventSource(`/api/term/${termSid}/stream`);
+  termES.onmessage = e => {
+    if (!termEnded) termStatus('Conectat', false);
+    const bytes = Uint8Array.from(atob(e.data), c => c.charCodeAt(0));
+    term.write(bytes);
+    termTail = (termTail + dec.decode(bytes, { stream: true })).slice(-400);
+  };
+  termES.addEventListener('exit', () => {
+    termES.close();
+    termEnded = true;
+    termStatus('Deconectat', false, true);
+    // Explain what went wrong in plain words, with a button that fixes it where possible.
+    const say = (msg, ...btns) => {
+      term.writeln('\r\n\x1b[33m' + msg + '\x1b[0m');
+      $('term-actions').innerHTML = btns.map(([act, label]) => `<button data-term="${act}">${label}</button>`).join('');
+    };
+    if (/REMOTE HOST IDENTIFICATION HAS CHANGED|Host key verification failed/.test(termTail)) {
+      say('Dispozitivul are altă cheie decât data trecută. Normal dacă l-ai reinstalat; altfel, atenție.',
+          ['newkey', 'Acceptă cheia nouă'], ['retry', 'Reîncearcă']);
+    } else if (/Permission denied|Too many authentication failures/.test(termTail)) {
+      say(`Utilizator sau parolă greșită (utilizator: ${termDev.ssh_user}).`, ['user', 'Schimbă utilizatorul'], ['retry', 'Reîncearcă']);
+    } else if (/Connection refused|Connection reset|Connection closed by/.test(termTail)) {
+      say('SSH nu răspunde încă. Dacă abia l-ai pornit, așteaptă 1–2 minute (la prima pornire, un Pi Zero poate dura ~5 min). ' +
+          'Dacă tot nu merge, SSH e oprit: activează-l din Raspberry Pi Imager sau cu sudo raspi-config.', ['retry', 'Reîncearcă']);
+    } else if (/timed out|No route to host|Could not resolve/.test(termTail)) {
+      say('Dispozitivul nu răspunde. Verifică dacă e pornit și conectat la rețea.', ['retry', 'Reîncearcă']);
+    } else {
+      $('term-actions').innerHTML = '<button data-term="retry">Reconectează</button>';
+    }
+    term.writeln('\r\n\x1b[90m[Conexiune închisă · apasă orice tastă ca să închizi]\x1b[0m');
+  });
+  // The server never resends from the middle, so don't let EventSource auto-reconnect.
+  termES.onerror = () => { if (termES.readyState !== EventSource.CLOSED) termES.close(); };
+}
+
+function closeTerminal() {
+  if (termSid && !termEnded) termPost('close').catch(() => {});
+  termES?.close();
+  term?.dispose();
+  term = termES = termFit = termSid = null;
+  $('term-actions').innerHTML = '';
+  termStatus('');
+  termPending = '';
+  $('term-modal').hidden = true;
+}
+
+$('term-close').addEventListener('click', closeTerminal);
+$('term-actions').addEventListener('click', async e => {
+  const act = e.target.closest('[data-term]')?.dataset.term;
+  if (!act || !termDev) return;
+  const dev = termDev;
+  if (act === 'newkey') {
+    const r = await busy(e.target.closest('button'), () =>
+      fetch(`/api/sshreset/${encodeURIComponent(dev.id)}`, { method: 'POST' }).then(r => r.json()).catch(() => ({})), 400);
+    if (!r.ok) return toast('Nu s-a putut șterge cheia veche', 'err');
+  }
+  if (act === 'user') {
+    const user = await dialog({ title: 'Utilizator SSH', icon: 'terminal', ok: 'Conectează-te',
+      input: { value: dev.ssh_user || '', validate: v => v ? USER_OK(v) : 'Scrie utilizatorul' } });
+    if (!user || !await saveDevice(dev.id, { ssh_user: user })) return;
+  }
+  openTerminal(last.devices.find(x => x.id === dev.id) || dev);
+});
+addEventListener('resize', () => { if (termFit) termFit.fit(); });
+
+const TOAST_ICONS = {
+  ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  err: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 7v6M12 17h.01"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 11v6M12 7h.01"/></svg>',
+};
+
+function toast(msg, kind = 'ok') {
+  const t = $('toast');
+  t.className = 'toast ' + kind;
+  t.innerHTML = `<span class="ti">${TOAST_ICONS[kind]}</span><span>${esc(msg)}</span>`;
+  requestAnimationFrame(() => t.classList.add('show'));
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), kind === 'err' ? 5000 : 3000);
+}
+
+async function showAgentSetup(id) {
+  let j;
+  try { j = await (await fetch(`/api/agent/${encodeURIComponent(id)}`, { method: 'POST' })).json(); } catch {}
+  if (!j?.ok) return toast('Nu s-a putut genera comanda', 'err');
+  const back = document.createElement('div');
+  back.className = 'dlg-back';
+  back.innerHTML = `
+    <div class="dlg" role="dialog" aria-modal="true" style="width:min(520px,100%)">
+      <div class="di info">${ICONS.chart}</div>
+      <h3>Activează statisticile PC-ului</h3>
+      <ol>
+        <li>Pe PC, apasă <b>Win + X</b> și alege <b>Terminal</b> (sau <b>Windows PowerShell</b>).</li>
+        <li>Lipește comanda de mai jos și apasă <b>Enter</b>.</li>
+      </ol>
+      <div class="cmd"><code>${esc(j.command)}</code><button data-r="copy" title="Copiază">Copiază</button></div>
+      <p style="margin-top:12px;font-size:12px">Comanda merge 15 minute. Dacă ești conectat prin RustDesk, poți copia aici și lipi direct pe PC. Statisticile apar în câteva secunde.</p>
+      <div class="row-btns"><button data-r="no" class="primary">Gata</button></div>
+    </div>`;
+  document.body.appendChild(back);
+  requestAnimationFrame(() => back.classList.add('show'));
+  const close = () => { back.classList.remove('show'); setTimeout(() => back.remove(), 150); document.removeEventListener('keydown', onKey, true); };
+  const onKey = e => { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); close(); } };
+  document.addEventListener('keydown', onKey, true);
+  back.addEventListener('click', async e => {
+    const r = e.target.closest('[data-r]')?.dataset.r;
+    if (e.target === back || r === 'no') return close();
+    if (r === 'copy') {
+      try { await navigator.clipboard.writeText(j.command); }
+      catch {
+        const range = document.createRange(); range.selectNodeContents(back.querySelector('code'));
+        getSelection().removeAllRanges(); getSelection().addRange(range); document.execCommand('copy');
+      }
+      toast('Comanda a fost copiată', 'ok');
+    }
+  });
+}
+
+// In-app replacement for confirm()/prompt(). Resolves to true / the typed text, or null if cancelled.
+const RID_OK = v => !v || /^\d{8,12}$/.test(v.replace(/\s/g, '')) ? '' : 'ID-ul RustDesk are doar cifre (9–10).';
+const USER_OK = v => !v || /^[A-Za-z_][A-Za-z0-9_.-]{0,31}$/.test(v) ? '' : 'Utilizatorul poate avea doar litere, cifre și - _ .';
+
+async function saveDevice(id, changes) {
+  try {
+    const j = await (await fetch(`/api/edit/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(changes) })).json();
+    if (!j.ok) { toast(j.error || 'Nu s-a putut salva', 'err'); return false; }
+  } catch { toast('Eroare: serverul nu răspunde', 'err'); return false; }
+  await poll();
+  return true;
+}
+
+// One place to change what's specific to each person's device: name, SSH user, RustDesk ID.
+async function editDevice(d) {
+  if (!d) return;
+  const fields = [{ key: 'name', label: 'Nume', value: d.name, validate: v => v ? '' : 'Scrie un nume' }];
+  if (d.ssh || ['pi', 'other'].includes(d.kind)) {
+    fields.push({ key: 'ssh_user', label: 'Utilizator SSH', value: d.ssh_user || '', placeholder: 'ex: pi, admin, ubuntu',
+                  hint: 'Cel ales la instalarea sistemului (în Raspberry Pi Imager: „username”).', validate: USER_OK });
+  }
+  if (['desktop', 'laptop', 'other'].includes(d.kind) || d.rustdesk_id) {
+    fields.push({ key: 'rustdesk_id', label: 'ID RustDesk', value: d.rustdesk_id || '', numeric: true, placeholder: 'ex: 1 234 567 890',
+                  hint: 'Numărul de la „ID” din RustDesk, pe dispozitiv. Gol dacă nu folosești RustDesk.', validate: RID_OK });
+  }
+  const v = await dialog({ title: 'Setări dispozitiv', icon: d.kind in ICONS ? d.kind : 'other', ok: 'Salvează', fields });
+  if (v && await saveDevice(d.id, v)) toast('Salvat', 'ok');
+}
+
+// `input` asks for one value (resolves to the string); `fields` asks for several (resolves to {key: value}).
+function dialog({ title, text = '', icon = 'info', ok = 'OK', danger = false, input = null, fields = null }) {
+  const list = fields || (input ? [{ key: '_', ...input }] : []);
+  return new Promise(resolve => {
+    const back = document.createElement('div');
+    back.className = 'dlg-back';
+    back.innerHTML = `
+      <div class="dlg" role="dialog" aria-modal="true">
+        <div class="di ${danger ? 'danger' : 'info'}">${ICONS[icon] || ICONS.other}</div>
+        <h3>${esc(title)}</h3>
+        ${text ? `<p>${esc(text)}</p>` : ''}
+        ${list.map(f => `
+          <label class="dlg-field">${f.label ? `<span>${esc(f.label)}</span>` : ''}
+            <input type="text" data-key="${esc(f.key)}" inputmode="${f.numeric ? 'numeric' : 'text'}" autocomplete="off" spellcheck="false"
+                   placeholder="${esc(f.placeholder || '')}" value="${esc(f.value || '')}">
+            ${f.hint ? `<small>${esc(f.hint)}</small>` : ''}
+          </label>`).join('')}
+        ${list.length ? '<div class="err-msg"></div>' : ''}
+        <div class="row-btns">
+          <button data-r="no">Anulează</button>
+          <button data-r="yes" class="${danger ? 'danger' : 'primary'}">${esc(ok)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(back);
+    requestAnimationFrame(() => back.classList.add('show'));
+    const inputs = [...back.querySelectorAll('input[data-key]')];
+    (inputs[0] || back.querySelector('[data-r=yes]')).focus();
+
+    const done = val => {
+      document.removeEventListener('keydown', onKey, true);
+      back.classList.remove('show');
+      setTimeout(() => back.remove(), 150);
+      resolve(val);
+    };
+    const accept = () => {
+      if (!list.length) return done(true);
+      const out = {};
+      for (const [i, f] of list.entries()) {
+        const v = inputs[i].value.trim();
+        const bad = f.validate?.(v);
+        if (bad) { back.querySelector('.err-msg').textContent = bad; inputs[i].focus(); return; }
+        out[f.key] = v;
+      }
+      done(fields ? out : out._);
+    };
+    const onKey = e => {
+      if (e.key === 'Escape') { e.preventDefault(); done(null); }
+      else if (e.key === 'Enter') { e.preventDefault(); accept(); }
+    };
+    document.addEventListener('keydown', onKey, true);
+    back.addEventListener('click', e => {
+      if (e.target === back) return done(null);
+      const r = e.target.closest('[data-r]')?.dataset.r;
+      if (r === 'no') done(null);
+      else if (r === 'yes') accept();
+    });
+  });
+}
+
+
+async function tvSend(id, op, value) {
+  try {
+    const r = await fetch(`/api/tv/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify({ op, value }) });
+    const j = await r.json();
+    if (!j.ok) toast(op === 'volume' || op === 'mute'
+      ? 'Televizorul n-a schimbat volumul. Îl acceptă doar în timpul redării prin DLNA.'
+      : 'Televizorul n-a răspuns la comandă', 'err');
+  } catch { toast('Eroare: serverul nu răspunde', 'err'); }
+  poll();
+}
+
+// TV buttons (captured before the generic device-button handler below).
+$('devices').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tv]');
+  if (!b || b.disabled) return;
+  e.stopImmediatePropagation();
+  const id = b.closest('[data-id]').dataset.id, tv = last?.tv?.[id];
+  const op = b.dataset.tv;
+  const value = op === 'seek' ? Math.max(0, (tv?.pos || 0) + Number(b.dataset.v)) : op === 'mute' ? !tv?.mute : undefined;
+  busy(b, () => tvSend(id, op, value), 300);
+}, true);
+
+// Volume: show the number live while dragging, send when released.
+$('devices').addEventListener('pointerdown', e => { if (e.target.classList?.contains('tv-range')) tvDragging = true; });
+addEventListener('pointerup', () => { tvDragging = false; });
+$('devices').addEventListener('input', e => {
+  if (!e.target.classList?.contains('tv-range')) return;
+  e.target.style.setProperty('--p', e.target.value + '%');
+  e.target.parentElement.querySelector('.tv-vol-n').textContent = e.target.value;
+});
+$('devices').addEventListener('change', e => {
+  if (!e.target.classList?.contains('tv-range')) return;
+  tvDragging = false;
+  tvSend(e.target.closest('[data-id]').dataset.id, 'volume', Number(e.target.value));
+});
+
+$('devices').addEventListener('click', async e => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn || btn.disabled) return;
+  const card = btn.closest('[data-id]');
+  const id = card.dataset.id, act = btn.dataset.act;
+  if (act === 'terminal') return openTerminal(last.devices.find(d => d.id === id));
+  if (act === 'agent') return showAgentSetup(id);
+  if (act === 'tvconnect') return toast('Conectarea la televizor vine în curând', 'info');
+  if (act === 'edit' || act === 'setrd') return editDevice(last.devices.find(d => d.id === id));
+  if (act === 'remove' && !await dialog({
+    title: `Scoți „${card.querySelector('.dev-name').textContent}”?`,
+    text: 'Dispare din panou. Dacă îl adaugi din nou, își recuperează setările.',
+    icon: 'x', ok: 'Scoate', danger: true,
+  })) return;
+  if (act === 'connect') toast('Se deschide RustDesk… poate dura câteva secunde', 'info');
+  // RustDesk takes a few seconds to show its window, so keep the spinner up meanwhile.
+  await busy(btn, async () => {
+    try {
+      const r = await fetch(`/api/${act}/${encodeURIComponent(id)}`, { method: 'POST' });
+      const j = await r.json();
+      const [msg, kind] = {
+        wake: ['Semnal de pornire trimis. Poate dura un minut.', 'info'],
+        connect: j.ok ? [null] : ['Nu s-a putut deschide RustDesk', 'err'],
+        remove: ['Scos din panou', 'ok'],
+      }[act];
+      if (msg) toast(msg, kind);
+      if (act === 'remove') await poll();
+    } catch { toast('Eroare: serverul nu răspunde', 'err'); }
+  }, act === 'connect' ? 4000 : 600);
+});
+
+$('discovered').addEventListener('click', async e => {
+  const chip = e.target.closest('button[data-kind]');
+  if (chip) {
+    chosenKind[chip.closest('.disc').dataset.mac] = chip.dataset.kind;
+    chip.parentElement.querySelectorAll('.kind').forEach(b => b.classList.toggle('sel', b === chip));
+    return;
+  }
+  const btn = e.target.closest('button[data-act]');
+  if (!btn || btn.disabled) return;
+  if (btn.dataset.act === 'scan') {
+    // A sweep takes ~4 s; keep the refresh icon spinning until the new results are in.
+    return busy(btn, async () => {
+      try { await fetch('/api/scan', { method: 'POST' }); } catch { return toast('Eroare: serverul nu răspunde', 'err'); }
+      await new Promise(r => setTimeout(r, 4500));
+      await poll();
+    });
+  }
+  if (btn.dataset.act === 'add') {
+    const row = btn.closest('.disc');
+    const name = row.querySelector('input').value.trim();
+    if (!name) { toast('Scrie un nume', 'err'); return row.querySelector('input').focus(); }
+    // Adding a TV looks it up on the network first, so this can take a few seconds.
+    await busy(btn, async () => {
+      try {
+        const r = await fetch('/api/add', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip: row.dataset.ip, mac: row.dataset.mac, name, kind: row.querySelector('.kind.sel')?.dataset.kind || 'other' }),
+        });
+        const j = await r.json();
+        toast(j.ok ? `„${name}” a fost adăugat` : 'Nu s-a putut adăuga', j.ok ? 'ok' : 'err');
+        document.activeElement.blur();
+        await poll();
+      } catch { toast('Eroare: serverul nu răspunde', 'err'); }
+    });
+  }
+});
+</script>
+</body>
+</html>
