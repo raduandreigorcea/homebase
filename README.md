@@ -1,25 +1,35 @@
-# Homebase
+<p align="center">
+  <img src="icon.png" alt="Homebase logo" width="96" />
+</p>
 
-Panoul de control al terminalului: starea dispozitivelor din casă, internetul,
-notificări și conectare la distanță.
+<h1 align="center">Homebase</h1>
 
-## Structură
+<p align="center"><b>Turn an old laptop into a control panel for every device in your home.</b></p>
 
-| Folder / fișier | Ce face |
-|---|---|
-| `server/server.py` | Strânge datele (procesor, memorie, internet, dispozitive), caută în rețea, trimite notificări. Rulează ca serviciu: `homebase.service` |
-| `server/agent-windows.ps1`, `server/install-windows.ps1` | Programelul de statistici pentru Windows și instalatorul lui. Panoul îl dă PC-ului prin portul 8801 (singurul port deschis în rețea) |
-| `server/identify.py` | Ghicește ce e un dispozitiv nou: producătorul plăcii de rețea, numele anunțat (Windows, mDNS, NetBIOS), descrierea DLNA/UPnP și porturile la care răspunde |
-| `ui/index.html` | Interfața: tot ce vezi pe ecran |
-| `src-tauri/` | Aplicația desktop (Rust + Tauri): fereastra Homebase |
-| `dist/index.html` | Nefolosit (Tauri cere un folder `dist`). Aplicația așteaptă serverul și deschide direct http://127.0.0.1:8800 din `src-tauri/src/main.rs` |
-| `ui/vendor/` | xterm.js (terminalul din aplicație), copiat din `node_modules` |
-| `icon.svg` | Iconița aplicației |
+That slow laptop in the drawer still has a screen, a keyboard and a battery. Homebase turns it into a quiet little terminal for your home network: it finds what's connected, shows what's on and what's off, and lets you jump into any of it with one click. No cloud, no account, nothing leaves your network.
 
-Datele (lista de dispozitive, istoricul) stau în `~/.local/share/homebase/`.
+## What it does
 
-## Comenzi
+- 🔎 **Finds your devices on its own.** Within seconds it lists what's on your network and works out what each thing is: "Office PC · Windows", "raspberrypi · Raspberry Pi OS", "Smart TV". Pick the ones you care about and press Add.
 
-- Repornește serverul după ce modifici `server.py`: `systemctl --user restart homebase`
-- După ce modifici `ui/index.html`: doar reîncarcă fereastra (F5)
-- Recompilează aplicația: `npm run build` (rezultatul: `src-tauri/target/release/homebase`)
+- 🟢 **Knows what's on.** Every device shows whether it's up, how fast it answers, and how long it's been running. A device that just dozes off on Wi-Fi isn't mistaken for one that's switched off.
+
+- 💻 **A terminal built in.** Open an SSH session to a Raspberry Pi or any Linux box right inside the app. If something's wrong (wrong user, a freshly reinstalled device, SSH still booting) it tells you in plain words and offers the fix.
+
+- 🖥️ **Remote desktop in one click.** Connect to a Windows PC through RustDesk, or wake it up over the network when it's off.
+
+- 📺 **Your TV, from the couch.** Volume and play / pause / seek for anything playing over DLNA, even on old budget smart TVs.
+
+- 🌐 **Internet at a glance.** A live line of your connection's response time sits in the top bar, and you hear about it when the internet drops and when it's back.
+
+- 🔔 **A history that makes sense.** Devices turning on and off, outages, and unknown devices joining your network all land in one timeline, with desktop notifications for the ones that matter.
+
+- 🪶 **Light on old hardware.** Built for a 2-core Celeron with 4 GB of RAM: the background service uses well under 1% of a CPU core.
+
+## Why it exists
+
+Home networks quietly fill up with things: a PC, a Raspberry Pi, a TV, a laptop that isn't yours. Keeping an eye on them usually means a router page nobody understands, three different apps, and typing IP addresses from memory. Homebase puts all of it on one screen, on hardware you already own.
+
+## License
+
+Homebase is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE.md): you're welcome to read the code, learn from it, and use it for personal, hobby, or educational purposes, but any commercial use is not permitted.
