@@ -22,7 +22,7 @@ That slow laptop in the drawer still has a screen, a keyboard and a battery. Hom
 
 - ⌨️ **Everything from the keyboard.** Press `/` and type `ssh raspberrypi`, `wake office-pc` or `speed raspberrypi`. Tab completes.
 
-- 🖥️ **Remote desktop in one click.** Connect to a Windows PC through RustDesk, or wake it up over the network when it's off.
+- 🖥️ **Remote desktop in one click.** Open a Windows PC with Remote Desktop (through Remmina, which can remember the password), or wake it up over the network when it's off. Files you drop on its card show up on the PC during the session.
 
 - 📺 **Your TV, from the couch.** Volume and play / pause / seek for anything playing over DLNA, even on old budget smart TVs.
 
@@ -53,7 +53,7 @@ cp linux/homebase.desktop ~/.local/share/applications/
 install -Dm644 src-tauri/icons/128x128.png ~/.local/share/icons/hicolor/128x128/apps/homebase.png
 ```
 
-The panel also works in any browser at <http://127.0.0.1:8800>. Optional extras: `ptyxis` for opening SSH in a separate window, the RustDesk Flatpak for remote desktop, and `iw` for Wi-Fi signal strength.
+The panel also works in any browser at <http://127.0.0.1:8800>. Optional extras: `ptyxis` for opening SSH in a separate window, Remmina for Remote Desktop to Windows PCs, and `iw` for Wi-Fi signal strength.
 
 ## License
 

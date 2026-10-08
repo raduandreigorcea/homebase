@@ -6,6 +6,7 @@ the status of the devices listed in devices.json. Stdlib only, so it stays
 light on the Celeron.
 """
 import base64
+import configparser
 import ipaddress
 import fcntl
 import json
@@ -13,6 +14,7 @@ import os
 import pty
 import re
 import secrets
+import shutil
 import signal
 import struct
 import socket
@@ -40,7 +42,7 @@ DATA.mkdir(parents=True, exist_ok=True)
 remote.init(DATA)
 PORT = 8800
 AGENT_PORT = 8801  # listens on the LAN, only for PC agents (install + push), nothing else
-AGENTS_ENABLED = False  # PC stats paused (user's call, 2026-10-07): no LAN port is opened while False
+AGENTS_ENABLED = True  # Windows PCs send their stats here; the port only serves install + push (token-protected)
 HISTORY = 90  # samples kept for sparklines (2 s apart = 3 minutes)
 INTERVAL = 2.0
 
@@ -49,7 +51,7 @@ SCAN_EVERY = 30  # seconds between network discovery sweeps (a sweep is ~254 tin
 lock = threading.Lock()
 devices_lock = threading.Lock()
 state = {"netbook": {}, "devices": {}, "history": {}, "discovered": {}, "last_scan": 0, "stats": {}, "tv": {},
-         "sshstats": {}}
+         "sshstats": {}, "rdp": {}}
 
 # First three bytes of the hardware address -> maker, for devices worth naming.
 VENDORS = {
@@ -110,7 +112,7 @@ def identify(ip, mac):
     # A "locally administered" address is the random one phones use on Wi-Fi.
     private = int(mac[:2], 16) & 2
     if not vendor and private:
-        vendor, kind = "Telefon sau tabletă (adresă privată)", "phone"
+        vendor, kind = "Phone or tablet (private address)", "phone"
     try:
         name = socket.gethostbyaddr(ip)[0].split(".")[0]
     except OSError:
@@ -187,8 +189,8 @@ def scan():
     if not first_run:
         for i in new:
             if i["mac"] not in known:
-                what = " · ".join(x for x in (i.get("name"), i.get("label")) if x) or "Un dispozitiv necunoscut"
-                event("new", f"{what} a intrat în rețea ({i['ip']})", "dialog-warning")
+                what = " · ".join(x for x in (i.get("name"), i.get("label")) if x) or "An unknown device"
+                event("new", f"{what} joined the network ({i['ip']})", "dialog-warning")
     with lock:
         state["discovered"] = found
         state["last_scan"] = time.time()
@@ -411,11 +413,11 @@ def notify(title, body, icon):
         pass
 
 
-def event(kind, text, icon="network-workgroup", alert=True):
-    """Record something that happened; kind drives the colour in the UI."""
+def event(kind, text, icon="network-workgroup", alert=True, dev=None):
+    """Record something that happened; kind drives the colour in the UI, dev ties it to a device."""
     # The file is written under the lock too: the scanner and the sampler can log at the same moment.
     with lock:
-        events.append({"t": time.time(), "kind": kind, "text": text})
+        events.append({"t": time.time(), "kind": kind, "text": text} | ({"dev": dev} if dev else {}))
         tmp = tmp_for(EVENTS_FILE)
         with open(tmp, "w") as f:
             json.dump(list(events), f, ensure_ascii=False)
@@ -442,7 +444,7 @@ def sampler():
     saved = load_json(UPTIME_FILE, {})
     # Last on/off we actually saw per device. Unlike state["devices"], this is never
     # wiped (not by restarts, not by standby), so a device that changed while we
-    # weren't looking still gets its "s-a pornit" / "s-a oprit" entry.
+    # weren't looking still gets its "turned on" / "turned off" entry.
     last_known = {k: v["online"] for k, v in saved.items() if isinstance(v.get("online"), bool)}
     with lock:
         for k, v in saved.items():
@@ -463,14 +465,14 @@ def sampler():
                 net_fails = 0
                 with lock:
                     # Forget pre-sleep state: it's stale, and comparing against it
-                    # is what produced fake "s-a oprit / a picat" alerts on wake.
+                    # is what produced fake "turned off / went down" alerts on wake.
                     for v in state["devices"].values():
                         v["online"] = None
                     state["internet"] = None
                     for k in list(state["history"]):
                         state["history"][k].clear()
                 mins = max(1, round(slept / 60))
-                event("info", f"Terminalul s-a trezit din standby (a dormit {mins} min)", alert=False)
+                event("info", f"This computer woke up from sleep (slept {mins} min)", alert=False)
             # Wi-Fi needs a few seconds to reconnect after waking; until then a
             # failed check means "don't know yet", not "offline".
             waking = woke_at is not None and mono - woke_at < WAKE_GRACE
@@ -533,8 +535,8 @@ def sampler():
                     # Report real changes only: compare with the last state we actually saw.
                     before = prev.get("online") if prev.get("online") is not None else last_known.get(k)
                     if before is not None and before != v["online"]:
-                        changes.append(("on" if v["online"] else "off", f"{name} " + ("s-a pornit" if v["online"] else "s-a oprit"),
-                                        "computer" if v["online"] else "system-shutdown"))
+                        changes.append(("on" if v["online"] else "off", f"{name} " + ("turned on" if v["online"] else "turned off"),
+                                        "computer" if v["online"] else "system-shutdown", k))
                     last_known[k] = v["online"]
                     state["devices"][k] = v
                     push(f"lat:{k}", v["latency"])
@@ -549,13 +551,13 @@ def sampler():
                     if prev and prev["online"] != internet["online"]:
                         if internet["online"]:
                             mins = max(1, round((time.time() - prev.get("down_since", time.time())) / 60))
-                            changes.append(("on", f"Internetul a revenit (a lipsit {mins} min)", "network-wireless"))
+                            changes.append(("on", f"Internet is back (was down {mins} min)", "network-wireless", None))
                         else:
-                            changes.append(("off", "Internetul a picat", "network-wireless-offline"))
+                            changes.append(("off", "Internet went down", "network-wireless-offline", None))
                     state["internet"] = internet
                     push("net_lat", ilat)
-            for kind, text, icon in changes:
-                event(kind, text, icon)
+            for kind, text, icon, dev in changes:
+                event(kind, text, icon, dev=dev)
             # TVs: read volume/playback while they're on (cheap: 4 tiny SOAP calls).
             if tick % 2 == 0:
                 for d in load_devices():
@@ -586,16 +588,74 @@ def wake(mac):
             s.sendto(b"\xff" * 6 + raw * 16, ("255.255.255.255", 9))
 
 
-def connect(device):
-    if device.get("rustdesk_id"):
-        cmd = ["flatpak", "run", "com.rustdesk.RustDesk", "--connect", device["rustdesk_id"]]
-    elif device.get("ssh") and lan_ip(device.get("host")):
-        target = f"{device['ssh_user']}@{device['host']}" if device.get("ssh_user") else device["host"]
-        cmd = ["ptyxis", "--new-window", "--", "ssh", "--", target]
+def shared_folder():
+    """The laptop folder a Windows PC sees during Remote Desktop (and where files for it land without SSH)."""
+    try:
+        out = subprocess.run(["xdg-user-dir", "DOWNLOAD"], capture_output=True, text=True, timeout=3).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        out = ""
+    return Path(out) if out and Path(out).is_dir() else Path.home()
+
+
+def rdp_connect(device):
+    """Open Remote Desktop to a Windows PC in Remmina. None, or what's wrong in plain words."""
+    host = lan_ip(device.get("host"))
+    if not host:
+        return "Invalid address"
+    if probe(host, 3389, 1.5) is None:
+        return "Remote Desktop is off on the PC (Settings › System › Remote Desktop)"
+    # One Remmina profile per PC. Remmina keeps its own settings there, and the password in the
+    # system keyring if you tick "save"; Homebase only refreshes the address and the shared folder.
+    folder = DATA / "remmina"
+    folder.mkdir(exist_ok=True)
+    profile = folder / f"{device['id']}.remmina"
+    cfg = configparser.ConfigParser(interpolation=None)
+    cfg.optionxform = str
+    try:
+        cfg.read(profile, encoding="utf-8")
+    except configparser.Error:
+        cfg = configparser.ConfigParser(interpolation=None)
+        cfg.optionxform = str
+    if "remmina" not in cfg:
+        cfg["remmina"] = {}
+    r = cfg["remmina"]
+    r.update({"name": clean_name(device["name"]), "protocol": "RDP", "server": host, "sharefolder": str(shared_folder()),
+              # Full screen, and the PC's desktop takes this screen's resolution: it looks like the PC's own
+              # screen rather than another app. Remmina's toolbar peeks in at the top edge to leave.
+              "viewmode": "4", "resolution_mode": "1"})
+    if device.get("ssh_user") and "username" not in r:  # a name corrected in Remmina's login box wins
+        r["username"] = device["ssh_user"]
+    # A Microsoft account logs in with its email, and FreeRDP must be told it's one: without this
+    # domain it reads "name@outlook.com" as a company (Kerberos) login and the sign-in fails.
+    if "@" in r.get("username", "") and not r.get("domain"):
+        r["domain"] = "MicrosoftAccount"
+    # A PC prepared by Homebase signs in on its own Windows screen (PIN or password), which avoids
+    # the Microsoft-account sign-in that FreeRDP can't do. Otherwise let Remmina negotiate.
+    if device.get("nla") == 0:
+        r["security"] = "tls"
     else:
-        return False
-    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-    return True
+        r.pop("security", None)
+    with open(profile, "w", encoding="utf-8") as f:
+        cfg.write(f, space_around_delimiters=False)
+    try:
+        # Remmina's own messages (why a login failed...) go to a log next to the profile.
+        with open(folder / "last.log", "w") as log:
+            subprocess.Popen(["remmina", "-c", str(profile)], stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    except OSError:
+        return "Remmina is missing on this computer (sudo dnf install remmina)"
+    return None
+
+
+def connect(device):
+    """None, or an error message."""
+    if is_windows(device):
+        return rdp_connect(device)
+    if device.get("ssh") and lan_ip(device.get("host")):
+        target = f"{device['ssh_user']}@{device['host']}" if device.get("ssh_user") else device["host"]
+        subprocess.Popen(["ptyxis", "--new-window", "--", "ssh", "--", target],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        return None
+    return "Don't know how to connect to it"
 
 
 # --- TVs over DLNA -----------------------------------------------------------
@@ -782,10 +842,13 @@ def add_device(body):
         if label:
             dev["os"] = label
     # Re-adding something that was removed earlier brings back its settings
-    # (RustDesk ID, SSH user...), only the name and type come from the form.
+    # (SSH user, key...), only the name and type come from the form.
     forgotten = load_json(FORGOTTEN_FILE, {})
     if mac in forgotten:
         dev = forgotten.pop(mac) | {"name": name, "kind": kind, "host": ip}
+        if kind == "tv":  # a TV has no SSH, whatever this address was set up as before
+            for k in ("ssh", "ssh_user", "key"):
+                dev.pop(k, None)
         save_json(FORGOTTEN_FILE, forgotten)
     with devices_lock:
         devices = [d for d in load_devices() if d.get("mac", "").lower() != mac]
@@ -794,53 +857,31 @@ def add_device(body):
     return dev
 
 
-def set_rustdesk(dev_id, rid):
-    rid = "".join(ch for ch in str(rid) if ch.isdigit())
-    if not 8 <= len(rid) <= 12:
-        return False
-    with devices_lock:
-        devices = load_devices()
-        for d in devices:
-            if d["id"] == dev_id:
-                d["rustdesk_id"] = rid
-                save_devices(devices)
-                return True
-    return False
-
-
 SSH_USER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,31}$")
 
 
 def edit_device(dev_id, body):
-    """Change what a person can set on a device card: name, SSH user, RustDesk ID."""
+    """Change what a person can set on a device card: name and user (for SSH and Remote Desktop)."""
     with devices_lock:
         devices = load_devices()
         dev = next((d for d in devices if d["id"] == dev_id), None)
         if not dev:
-            return "Dispozitivul nu mai există"
+            return "This device no longer exists"
         if "name" in body:
             name = clean_name(body["name"])
             if not name:
-                return "Numele nu poate fi gol"
+                return "The name can't be empty"
             dev["name"] = name
         if "ssh_user" in body:
             user = str(body["ssh_user"]).strip()
             if user and not SSH_USER_RE.match(user):
-                return "Utilizator invalid (doar litere, cifre, - _ .)"
+                return "Invalid user name (letters, digits and - _ . only)"
             if user != dev.get("ssh_user", ""):
                 dev.pop("key", None)  # the key was set up for the old user
             if user:
                 dev["ssh_user"], dev["ssh"] = user, True
             else:
                 dev.pop("ssh_user", None)
-        if "rustdesk_id" in body:
-            rid = "".join(ch for ch in str(body["rustdesk_id"]) if ch.isdigit())
-            if rid and not 8 <= len(rid) <= 12:
-                return "ID-ul RustDesk are 9–10 cifre"
-            if rid:
-                dev["rustdesk_id"] = rid
-            else:
-                dev.pop("rustdesk_id", None)
         save_devices(devices)
     return None
 
@@ -967,10 +1008,12 @@ def key_setup(dev_id, password):
     dev = next((d for d in load_devices() if d["id"] == dev_id), None)
     target = ssh_target(dev)
     if not target:
-        return "Setează întâi utilizatorul SSH"
+        return "Set the SSH user first"
     if not password:
-        return "Scrie parola"
+        return "Type the password"
     err = remote.install_key(target, is_windows(dev), password)
+    if err is None:
+        event("info", f"{dev['name']}: password-free access set up", alert=False, dev=dev_id)
     with devices_lock:
         devices = load_devices()
         for d in devices:
@@ -985,7 +1028,7 @@ def key_remove(dev_id):
     dev = next((d for d in load_devices() if d["id"] == dev_id), None)
     target = ssh_target(dev)
     if not target:
-        return "Dispozitivul nu are SSH configurat"
+        return "This device has no SSH set up"
     err = remote.remove_key(target, is_windows(dev))
     if err is None:
         with devices_lock:
@@ -996,7 +1039,34 @@ def key_remove(dev_id):
             save_devices(devices)
         with lock:
             state["sshstats"].pop(dev_id, None)
+        event("info", f"{dev['name']}: password-free access removed", alert=False, dev=dev_id)
     return err
+
+
+def device_events(dev, limit=5):
+    """Newest events about one device. Older events have no "dev" field; those match by name."""
+    with lock:
+        evs = list(events)
+    mine = [e for e in reversed(evs) if e.get("dev") == dev["id"]
+            or ("dev" not in e and e["text"].startswith(dev["name"] + " "))]
+    return mine[:limit]
+
+
+def rdp_checker():
+    """Whether each Windows PC answers on Remote Desktop (the card greys out Connect when it doesn't)."""
+    time.sleep(8)  # first look soon after start, once the sampler knows which devices are on
+    while True:
+        try:
+            with lock:
+                status = dict(state["devices"])
+            for d in load_devices():
+                if is_windows(d) and status.get(d["id"], {}).get("online") and lan_ip(d.get("host")):
+                    ok = probe(d["host"], 3389, 1.5) is not None
+                    with lock:
+                        state["rdp"][d["id"]] = ok
+        except Exception:
+            pass
+        time.sleep(30)
 
 
 SSH_STATS_EVERY = 30  # seconds
@@ -1020,6 +1090,9 @@ def ssh_stats_poller():
                             state["sshstats"][d["id"]] = st
                             if st.get("cpu") is not None:
                                 push(f"cpu:{d['id']}", st["cpu"])
+                            if st.get("temp") is not None:
+                                push(f"temp:{d['id']}", st["temp"])
+                            push(f"ram:{d['id']}", round(100 * (1 - st["mem_free"] / st["mem_total"]), 1))
         except Exception:
             pass
         time.sleep(SSH_STATS_EVERY)
@@ -1033,15 +1106,17 @@ def safe_filename(name):
     name = str(name).replace("\\", "/").rsplit("/", 1)[-1]
     name = "".join(ch for ch in name if ch.isprintable() and ch not in '<>:"|?*$`;&')
     name = name.strip().lstrip(".-").strip()[:120]
-    return name or "fisier"
+    return name or "file"
 
 
 def receive_and_send(handler, dev, name):
-    """Save the uploaded body to a temp file, then copy it to the device with scp."""
-    target = ssh_target(dev)
+    """Save the upload, then deliver it: with scp when the key is set up, otherwise (a Windows PC)
+    into the laptop folder that Remote Desktop shares with it. Returns "ssh", "shared" or None."""
+    target = ssh_target(dev) if dev.get("key") else None
+    shared = not target and is_windows(dev)
     length = int(handler.headers.get("Content-Length", 0))
-    if not target or not dev.get("key") or not 0 < length <= UPLOAD_MAX:
-        return False
+    if not (target or shared) or not 0 < length <= UPLOAD_MAX:
+        return None
     tmp_dir = DATA / "tmp"
     tmp_dir.mkdir(exist_ok=True)
     tmp = tmp_dir / secrets.token_hex(8)
@@ -1051,10 +1126,17 @@ def receive_and_send(handler, dev, name):
             while left:
                 chunk = handler.rfile.read(min(left, 1024 * 1024))
                 if not chunk:
-                    return False
+                    return None
                 f.write(chunk)
                 left -= len(chunk)
-        return remote.send_file(target, tmp, safe_filename(name))
+        if target:
+            return "ssh" if remote.send_file(target, is_windows(dev), tmp, safe_filename(name)) else None
+        dest = shared_folder() / safe_filename(name)
+        stem, n = dest.stem, 1
+        while dest.exists():  # never overwrite something already there
+            dest, n = dest.with_name(f"{stem} ({n}){dest.suffix}"), n + 1
+        shutil.move(str(tmp), dest)
+        return "shared"
     finally:
         tmp.unlink(missing_ok=True)
 
@@ -1103,11 +1185,40 @@ def agent_installer(code):
     if not dev or not dev.get("agent_token"):
         return None
     push_url = f"http://{local_net()}:{AGENT_PORT}/push/{dev['agent_token']}"
-    agent = (HERE / "agent-windows.ps1").read_text().replace("__PUSH_URL__", push_url)
-    return (HERE / "install-windows.ps1").read_text().replace("__AGENT__", agent)
+    agent = (HERE / "agent-windows.ps1").read_text(encoding="utf-8").replace("__PUSH_URL__", push_url)
+    script = (HERE / "install-windows.ps1").read_text(encoding="utf-8").replace("__AGENT__", agent)
+    # Homebase's own public key, so the PC trusts it for SSH without anyone typing a password.
+    return script.replace("__HOMEBASE_KEY__", remote.public_key())
 
 
-NUM_FIELDS = ("boot", "cpu", "mem_total", "mem_free", "disk_total", "disk_free", "gpu", "net_down", "net_up", "top_cpu")
+NUM_FIELDS = ("boot", "cpu", "mem_total", "mem_free", "disk_total", "disk_free", "gpu", "net_down", "net_up", "top_cpu", "nla")
+
+
+ssh_tries = {}  # device id -> last attempt, so a PC whose key doesn't work isn't retried every 5 s
+
+
+def adopt_ssh(dev_id, user):
+    """A prepared Windows PC reports SSH running: set its user and check Homebase's key works there."""
+    if time.time() - ssh_tries.get(dev_id, 0) < 300 or not SSH_USER_RE.match(user or ""):
+        return
+    ssh_tries[dev_id] = time.time()
+    with devices_lock:
+        devices = load_devices()
+        dev = next((d for d in devices if d["id"] == dev_id), None)
+        if not dev:
+            return
+        dev.setdefault("ssh_user", user)
+        dev["ssh"] = True
+        save_devices(devices)
+    target = ssh_target(dev)
+    if target and remote.key_works(target):
+        with devices_lock:
+            devices = load_devices()
+            for d in devices:
+                if d["id"] == dev_id:
+                    d["key"] = True
+            save_devices(devices)
+        event("info", f"{dev['name']}: SSH ready", alert=False, dev=dev_id)
 
 
 def agent_push(token, body):
@@ -1118,14 +1229,36 @@ def agent_push(token, body):
     for k in NUM_FIELDS:  # keep only known fields, as numbers
         v = body.get(k)
         stats[k] = float(v) if isinstance(v, (int, float)) else None
-    for k in ("host", "os", "top_name"):
-        stats[k] = str(body.get(k) or "")[:80]
+    for k in ("host", "os", "top_name", "model", "user"):
+        stats[k] = clean_name(body.get(k), 80)
     with lock:
         first = dev["id"] not in state["stats"]
         state["stats"][dev["id"]] = stats
         push(f"cpu:{dev['id']}", stats["cpu"])
-    if first:
-        event("on", f"{dev['name']} trimite statistici", "computer", alert=False)
+        if stats["mem_total"] and stats["mem_free"] is not None:
+            push(f"ram:{dev['id']}", round(100 * (1 - stats["mem_free"] / stats["mem_total"]), 1))
+        if stats["gpu"] is not None:
+            push(f"gpu:{dev['id']}", stats["gpu"])
+    # SSH came up on the PC (the installer put Homebase's key there): start using it.
+    if body.get("ssh") == 1 and not dev.get("key"):
+        threading.Thread(target=adopt_ssh, args=(dev["id"], stats["user"]), daemon=True).start()
+    # Remember how Remote Desktop signs in, so Remmina is set up right even when the agent is quiet.
+    if stats["nla"] is not None and dev.get("nla") != int(stats["nla"]):
+        with devices_lock:
+            devices = load_devices()
+            for d in devices:
+                if d["id"] == dev["id"]:
+                    d["nla"] = int(stats["nla"])
+            save_devices(devices)
+    # Only the very first report is news; after a restart of this service it would just repeat.
+    if first and not dev.get("agent_seen"):
+        with devices_lock:
+            devices = load_devices()
+            for d in devices:
+                if d["id"] == dev["id"]:
+                    d["agent_seen"] = True
+            save_devices(devices)
+        event("on", f"{dev['name']} is sending stats", "computer", alert=False)
     return True
 
 
@@ -1147,7 +1280,7 @@ class AgentHandler(BaseHTTPRequestHandler):
             script = agent_installer(parts[1])
             if script:
                 return self.reply(200, script)
-            return self.reply(404, "Write-Host 'Codul a expirat. Genereaza altul din Homebase.' -ForegroundColor Red")
+            return self.reply(404, "Write-Host 'This code has expired. Make a new one in Homebase.' -ForegroundColor Red")
         self.reply(404, "not found")
 
     def do_POST(self):
@@ -1209,7 +1342,8 @@ class Handler(BaseHTTPRequestHandler):
             known = {d.get("mac", "").lower() for d in raw}
             devices = [{k: v for k, v in d.items() if k != "agent_token"}
                        | {"has_wake": bool(d.get("mac")) and d.get("kind") in ("desktop", "laptop", "other"),
-                          "has_agent": bool(d.get("agent_token")), "windows": is_windows(d)} for d in raw]
+                          "has_agent": bool(d.get("agent_token")), "windows": is_windows(d),
+                          "recent": device_events(d), "rdp": state["rdp"].get(d["id"])} for d in raw]
             with lock:
                 body = {
                     "netbook": state["netbook"],
@@ -1314,7 +1448,8 @@ class Handler(BaseHTTPRequestHandler):
             u = urlparse(self.path)
             dev = next((d for d in load_devices() if d["id"] == u.path.split("/")[3]), None)
             name = parse_qs(u.query).get("name", [""])[0]
-            return self.send(200, {"ok": bool(dev) and receive_and_send(self, dev, name)})
+            how = receive_and_send(self, dev, name) if dev else None
+            return self.send(200, {"ok": bool(how), "via": how, "folder": str(shared_folder()) if how == "shared" else None})
         if len(parts) != 3 or parts[0] != "api":
             return self.send(404, {"error": "not found"})
         action, dev_id = parts[1], parts[2]
@@ -1348,12 +1483,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(400, {"error": "bad json"})
             err = edit_device(dev_id, body if isinstance(body, dict) else {})
             return self.send(200, {"ok": err is None, "error": err})
-        if action == "rustdesk":
-            try:
-                rid = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 256)) or b"{}").get("id", "")
-            except (ValueError, json.JSONDecodeError):
-                return self.send(400, {"error": "bad json"})
-            return self.send(200, {"ok": set_rustdesk(dev_id, rid)})
         dev = next((d for d in load_devices() if d["id"] == dev_id), None)
         if not dev:
             return self.send(404, {"error": "unknown device"})
@@ -1361,7 +1490,8 @@ class Handler(BaseHTTPRequestHandler):
             wake(dev["mac"])
             return self.send(200, {"ok": True})
         if action == "connect":
-            return self.send(200, {"ok": connect(dev)})
+            err = connect(dev)
+            return self.send(200, {"ok": err is None, "error": err})
         if action == "tv":
             try:
                 req = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 1024)) or b"{}")
@@ -1376,6 +1506,7 @@ if __name__ == "__main__":
     threading.Thread(target=scanner, daemon=True).start()
     threading.Thread(target=term_reaper, daemon=True).start()
     threading.Thread(target=ssh_stats_poller, daemon=True).start()
+    threading.Thread(target=rdp_checker, daemon=True).start()
     if AGENTS_ENABLED:
         agents = ThreadingHTTPServer(("0.0.0.0", AGENT_PORT), AgentHandler)
         threading.Thread(target=agents.serve_forever, daemon=True).start()

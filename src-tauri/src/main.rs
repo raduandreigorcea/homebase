@@ -33,5 +33,5 @@ fn main() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("Homebase nu a putut porni");
+        .expect("Homebase failed to start");
 }

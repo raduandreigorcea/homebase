@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Homebase
-Comment=Panoul de control pentru dispozitivele tale
+Comment=Control panel for the devices on your home network
 Exec=homebase
 Icon=homebase
 Terminal=false

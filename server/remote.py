@@ -8,6 +8,7 @@ redo the SSH handshake on this slow CPU. Callers pass an already-validated
 """
 import base64
 import os
+import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -80,7 +81,7 @@ if (-not (Test-Path $f) -or -not (Select-String -Path $f -SimpleMatch $k -Quiet)
     Add-Content -Path $f -Value $k -Encoding ascii
 }
 if ($f -like "$env:ProgramData*") { icacls $f /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-18:F' | Out-Null }
-Write-Host 'Cheia Homebase a fost adaugata.'
+Write-Host 'Homebase key added.'
 """
 
 
@@ -113,19 +114,19 @@ def install_key(target, windows, password):
         r = subprocess.run(argv, env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
                            errors="replace", timeout=45)
     except subprocess.TimeoutExpired:
-        return "Dispozitivul nu a răspuns la timp"
+        return "The device didn't answer in time"
     except OSError:
-        return "Lipsește ssh pe acest calculator"
+        return "ssh is missing on this computer"
     out = r.stdout + r.stderr
     if r.returncode == 0 and key_works(target):
         return None
     if "IDENTIFICATION HAS CHANGED" in out or "Host key verification failed" in out:
-        return "Dispozitivul are altă cheie de identificare decât data trecută (l-ai reinstalat?)"
+        return "The device has a different identity key than last time (was it reinstalled?)"
     if "Permission denied" in out:
-        return "Parolă sau utilizator greșit"
+        return "Wrong password or user"
     if any(x in out for x in ("Connection refused", "timed out", "No route to host", "Connection closed")):
-        return "Dispozitivul nu răspunde pe SSH. E pornit și are SSH activat?"
-    return "Nu s-a putut configura accesul fără parolă"
+        return "The device doesn't answer on SSH. Is it on, with SSH enabled?"
+    return "Couldn't set up password-free access"
 
 
 # Removal matches the key itself (its base64 part), so other keys in the file stay untouched.
@@ -151,13 +152,13 @@ def remove_key(target, windows):
     try:
         r = run(target, script, timeout=20)
     except (OSError, subprocess.SubprocessError):
-        return "Dispozitivul nu a răspuns la timp"
+        return "The device didn't answer in time"
     # The shared connection is still logged in with the key; close it, or the check below would pass.
     subprocess.run(["ssh", *ssh_args(), "-O", "exit", target], capture_output=True, timeout=10)
     if r.returncode != 0 and "Permission denied" not in r.stderr:  # refused = the key is already gone
-        return "Dispozitivul nu răspunde pe SSH. E pornit?"
+        return "The device doesn't answer on SSH. Is it on?"
     if key_works(target):
-        return "Cheia e încă acolo. Încearcă din nou."
+        return "The key is still there. Try again."
     return None
 
 
@@ -188,7 +189,8 @@ def action_argv(target, windows, action):
 # Each line is tagged so the order and missing pieces (no temperature sensor) don't matter.
 STATS_CMD = ("echo U $(cut -d' ' -f1 /proc/uptime); head -1 /proc/stat; "
              "grep -E '^(MemTotal|MemAvailable):' /proc/meminfo; "
-             "echo D $(df -Pk / | tail -1); echo T $(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)")
+             "echo D $(df -Pk / | tail -1); echo T $(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null); "
+             "echo K $(uname -r); echo M $(tr -d '\\0' < /proc/device-tree/model 2>/dev/null)")
 _prev_cpu = {}
 
 
@@ -217,6 +219,10 @@ def parse_stats(text, key, now):
                 out["disk_free"] = int(parts[4]) * 1024
             elif parts[0] == "T" and len(parts) > 1:
                 out["temp"] = round(int(parts[1]) / 1000, 1)
+            elif parts[0] == "K" and len(parts) > 1:
+                out["kernel"] = parts[1][:60]
+            elif parts[0] == "M" and len(parts) > 1:
+                out["model"] = " ".join(parts[1:])[:60]  # e.g. "Raspberry Pi Zero 2 W Rev 1.0"
         except (ValueError, IndexError):
             continue
     return out
@@ -235,14 +241,34 @@ def stats(target, key):
 
 # --- Sending files -----------------------------------------------------------
 
-def send_file(target, path, name):
-    """Copy a local file into the user's home folder on the device."""
+def exists(target, windows, rel):
+    """Whether a path (relative to the user's home folder) already exists on the device."""
+    if windows:
+        lit = rel.replace("'", "''")  # a literal in single quotes: nothing in the name is interpreted
+        cmd = powershell(f"if (Test-Path -LiteralPath (Join-Path $HOME '{lit}')) {{ 'yes' }}")
+    else:
+        cmd = f"test -e {shlex.quote(rel)} && echo yes"
     try:
-        r = subprocess.run(["scp", "-q", *ssh_args(), "--", str(path), f"{target}:{name}"],
-                           capture_output=True, text=True, errors="replace", timeout=3600)
+        return "yes" in run(target, cmd, timeout=20).stdout
     except (OSError, subprocess.SubprocessError):
         return False
-    return r.returncode == 0
+
+
+def send_file(target, windows, path, name):
+    """Copy a local file to where people look for received files: Downloads on Windows, the home
+    folder on Linux. A file with the same name is never overwritten: the copy becomes "name (1).ext".
+    Returns where it went (relative to the home folder), or None."""
+    folder = "Downloads/" if windows else ""
+    stem, dot, ext = name.rpartition(".") if "." in name.lstrip(".") else (name, "", "")
+    rel, n = folder + name, 1
+    while exists(target, windows, rel) and n < 100:
+        rel, n = f"{folder}{stem} ({n}){dot}{ext}", n + 1
+    try:
+        r = subprocess.run(["scp", "-q", *ssh_args(), "--", str(path), f"{target}:{rel}"],
+                           capture_output=True, text=True, errors="replace", timeout=3600)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return rel if r.returncode == 0 else None
 
 
 # --- Speed test --------------------------------------------------------------

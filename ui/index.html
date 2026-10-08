@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ro">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -71,6 +71,7 @@
   /* A file dragged over a card that can receive it. */
   .device.drop { border-color: var(--green); box-shadow: 0 0 0 3px rgba(52, 211, 153, .15); }
   .device:hover { border-color: #2c3846; }
+  .device { cursor: pointer; }  /* a click opens the device's big screen */
   .dev-head { display: flex; align-items: flex-start; gap: 12px; }
   .dev-icon {
     width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
@@ -241,7 +242,7 @@
   .pal-in { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
   .pal-p { color: var(--green); white-space: nowrap; }
   .pal-in input { flex: 1; min-width: 0; font: inherit; font-size: 15px; color: var(--text); background: transparent; border: 0; outline: none; caret-color: var(--green); }
-  .pal-list { max-height: 50vh; overflow-y: auto; padding: 6px; }
+  .pal-list { max-height: 50vh; overflow-y: auto; padding: 6px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
   .pal-item { display: flex; justify-content: space-between; gap: 16px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
   .pal-item b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pal-item span { color: var(--dim); white-space: nowrap; }
@@ -249,6 +250,68 @@
   .pal-item.sel b { color: var(--green); }
   .pal-empty { padding: 10px; color: var(--dim); }
   .pal-help { padding: 8px 16px; border-top: 1px solid var(--line); color: var(--dim); font-size: 11px; }
+
+  /* A device's big screen: who it is up top, live numbers and charts on the left, commands on the right. */
+  .dev-modal { position: fixed; inset: 0; background: rgba(4, 7, 10, .72); display: grid; place-items: center; padding: 24px; z-index: 9; }
+  .dev-modal[hidden] { display: none; }
+  .dev-win { width: min(1040px, 100%); max-height: min(820px, 100%); display: flex; flex-direction: column;
+             background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .dv-head { display: flex; align-items: center; gap: 14px; padding: 16px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .dv-head .dev-icon { width: 44px; height: 44px; border-radius: 12px; }
+  .dv-who { min-width: 0; flex: 1; }
+  .dv-who h3 { margin: 0; font-size: 19px; font-weight: 700; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .dv-who h3 .pill { margin-top: 0; font-size: 12px; }
+  .dv-who h3 .pill small { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .dv-who p { margin: 2px 0 0; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dv-tools { display: flex; gap: 2px; margin-left: auto; }
+  .dv-body { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+             display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); }
+  .dv-main, .dv-side { padding: 18px; display: grid; gap: 22px; align-content: start; min-width: 0; }
+  .dv-side { border-left: 1px solid var(--line); background: #0d1218; }
+  @media (max-width: 820px) { .dv-body { grid-template-columns: minmax(0, 1fr); } .dv-side { border-left: 0; border-top: 1px solid var(--line); } }
+  .dv-sec h4 { margin: 0 0 10px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1.3px;
+               display: flex; justify-content: space-between; gap: 10px; }
+  .dv-sec h4 span { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--dim); }
+  .dv-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+  .dv-tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 12px 8px; min-width: 0; }
+  .dv-tile > span { color: var(--muted); font-size: 11px; }
+  .dv-tile b { display: block; font-size: 24px; font-weight: 700; line-height: 1.2; margin-top: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .dv-tile b small { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+  .dv-tile svg { display: block; width: 100%; height: 26px; margin-top: 6px; }
+  .dv-chart { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 12px 6px; }
+  .dv-chart svg { display: block; width: 100%; height: 150px; overflow: visible; }
+  .dv-sys { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 20px; }
+  .dv-kv span { display: block; color: var(--dim); font-size: 11px; }
+  .dv-kv b { font-weight: 500; }
+  .dv-kv .bar { height: 4px; margin-top: 6px; }
+  .dv-log { display: grid; gap: 2px; }
+  .dv-log div { display: grid; grid-template-columns: 56px 10px minmax(0, 1fr); gap: 8px; align-items: baseline; color: var(--muted); }
+  .dv-log time { color: var(--dim); }
+  .dv-log i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: var(--dim); }
+  .dv-log .on i { background: var(--green); }
+  .dv-log .off i { background: var(--red); }
+  .dv-cmds { display: grid; gap: 4px; }
+  .dv-cmd { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 10px; align-items: center; text-align: left;
+            background: transparent; border-color: transparent; padding: 9px 10px; font-weight: 500; border-radius: 9px; }
+  .dv-cmd:hover, .dv-cmd:focus-visible { background: var(--panel-2); border-color: var(--line); }
+  .dv-cmd .p { color: var(--green); }
+  .dv-cmd code { font: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dv-cmd code em { font-style: normal; color: var(--muted); }
+  .dv-cmd > span:last-child { color: var(--dim); font-size: 11px; white-space: nowrap; }
+  .dv-cmd.danger-item .p, .dv-cmd.danger-item code { color: var(--red); }
+  .dv-drop { border: 1.5px dashed var(--line); border-radius: 12px; padding: 16px; text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s, background .15s; }
+  .dv-drop b { display: block; color: var(--text); }
+  .dv-drop small { color: var(--dim); }
+  .dv-drop:hover, .dv-drop.drop { border-color: var(--green); background: rgba(52, 211, 153, .06); }
+  .dv-speed { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; }
+  .dv-speed .nums { display: flex; gap: 18px; font-variant-numeric: tabular-nums; }
+  .dv-speed .nums div { display: grid; }
+  .dv-speed .nums b { font-size: 20px; font-weight: 700; }
+  .dv-speed .nums span { color: var(--dim); font-size: 11px; }
+  .dv-speed button { justify-self: start; padding: 7px 12px; }
+  .dv-note { color: var(--dim); font-size: 12px; margin: 0; }
+  .dv-foot { display: flex; gap: 16px; flex-wrap: wrap; padding: 10px 18px; border-top: 1px solid var(--line); color: var(--dim); font-size: 11px; }
+  .dv-foot kbd { font: inherit; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
 
   .term-modal { position: fixed; inset: 0; background: rgba(4, 7, 10, .72); display: grid; place-items: center; padding: 24px; z-index: 10; }
   .term-modal[hidden] { display: none; }
@@ -327,7 +390,7 @@
     <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#121820" stroke="#232d39"/><path d="M8 17l8-7 8 7v7H8z" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linejoin="round"/></svg>
     <div>
       <h1>Homebase</h1>
-      <p>Panoul tău de control</p>
+      <p>Your home control panel</p>
     </div>
   </div>
   <div class="net" id="inet"></div>
@@ -344,29 +407,46 @@
     <section class="card">
       <h2>Terminal <span id="stale"></span></h2>
       <div class="gauges">
-        <div class="gauge"><svg viewBox="0 0 120 80" id="g-cpu"></svg><div class="lbl">Procesor</div><div class="sub" id="g-cpu-sub"></div></div>
-        <div class="gauge"><svg viewBox="0 0 120 80" id="g-mem"></svg><div class="lbl">Memorie</div><div class="sub" id="g-mem-sub"></div></div>
-        <div class="gauge"><svg viewBox="0 0 120 80" id="g-temp"></svg><div class="lbl">Temperatură</div><div class="sub" id="g-temp-sub"></div></div>
+        <div class="gauge"><svg viewBox="0 0 120 80" id="g-cpu"></svg><div class="lbl">CPU</div><div class="sub" id="g-cpu-sub"></div></div>
+        <div class="gauge"><svg viewBox="0 0 120 80" id="g-mem"></svg><div class="lbl">Memory</div><div class="sub" id="g-mem-sub"></div></div>
+        <div class="gauge"><svg viewBox="0 0 120 80" id="g-temp"></svg><div class="lbl">Temperature</div><div class="sub" id="g-temp-sub"></div></div>
       </div>
       <div class="bat"><span class="bat-info" id="bat"></span><span class="bat-net" id="net-ms"></span></div>
     </section>
 
     <section class="card">
-      <h2>Ce s-a întâmplat</h2>
+      <h2>What happened</h2>
       <div id="events"></div>
     </section>
   </div>
 </main>
 
-<footer>Se actualizează la fiecare 2 secunde · rulează local pe terminal · apasă / pentru comenzi</footer>
+<footer>Updates every 2 seconds · runs locally on this computer · press / for commands</footer>
 <div class="pal-back" id="pal" hidden>
-  <div class="pal" role="dialog" aria-modal="true" aria-label="Comenzi">
+  <div class="pal" role="dialog" aria-modal="true" aria-label="Commands">
     <label class="pal-in"><span class="pal-p">homebase:~$</span><input id="pal-input" autocomplete="off" spellcheck="false" placeholder="ssh, wake, send, speed…"></label>
     <div class="pal-list" id="pal-list" role="listbox"></div>
-    <div class="pal-help">Tab completează · ↑↓ alege · Enter rulează · Esc închide</div>
+    <div class="pal-help">Tab completes · ↑↓ picks · Enter runs · Esc closes</div>
   </div>
 </div>
 <input type="file" id="send-file" multiple hidden>
+<div class="dev-modal" id="dev-modal" hidden>
+  <div class="dev-win" role="dialog" aria-modal="true" aria-labelledby="dv-name">
+    <div class="dv-head">
+      <div class="dev-icon" id="dv-icon"></div>
+      <div class="dv-who" id="dv-who"></div>
+      <span class="dv-tools">
+        <button class="icon-btn" id="dv-edit" title="Settings"></button>
+        <button class="icon-btn" id="dv-close" title="Close"></button>
+      </span>
+    </div>
+    <div class="dv-body" id="dv-body">
+      <div class="dv-main" id="dv-main"></div>
+      <div class="dv-side" id="dv-side"></div>
+    </div>
+    <div class="dv-foot"><span><kbd>Esc</kbd> close</span><span><kbd>/</kbd> commands</span><span>updates every 2 s</span></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <div class="term-modal" id="term-modal" hidden>
@@ -375,7 +455,7 @@
     <div class="term-bar">
       <span class="term-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5M12 19h8"/></svg><b id="term-name"></b><span class="muted-sm" id="term-host"></span><span class="term-status" id="term-status"></span></span>
       <span class="term-actions" id="term-actions"></span>
-      <button class="icon-btn" id="term-close" title="Închide terminalul">✕</button>
+      <button class="icon-btn" id="term-close" title="Close the terminal">✕</button>
     </div>
     <div class="term-body" id="term-body"></div>
   </div>
@@ -411,7 +491,7 @@ function bytes(n, perSec) {
 function dur(s) {
   s = Math.floor(s);
   const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
-  if (d) return `${d}z ${h}h`;
+  if (d) return `${d}d ${h}h`;
   if (h) return `${h}h ${m}m`;
   return `${m}m`;
 }
@@ -485,34 +565,31 @@ function deviceCard(d, st, hist, now, stats, tv, ssh) {
   const online = st?.online;
   const checked = st != null && st.online != null;
   const pillCls = !checked ? '' : online ? 'on' : 'off';
-  const pillTxt = !checked ? 'Se verifică…' : online ? 'Pornit' : 'Oprit';
-  const lat = online ? (st.latency != null ? `${st.latency} ms` : 'în rețea') : '–';
+  const pillTxt = !checked ? 'Checking…' : online ? 'On' : 'Off';
+  const lat = online ? (st.latency != null ? `${st.latency} ms` : 'on the network') : '–';
   // The agent knows the real boot time; without it we only know when we first saw it on.
   const since = stats?.boot ? dur(now - stats.boot) : online && st.since ? dur(now - st.since) : '–';
   // The TV only takes commands for what it plays over DLNA, so the controls
   // only show up then; otherwise the card just shows its volume.
   const tvActive = tv && ['PLAYING', 'PAUSED_PLAYBACK'].includes(tv.state);
-  const third = d.rustdesk_id
-    ? `<div><span>ID RustDesk</span><b>${d.rustdesk_id.replace(/\B(?=(\d{3})+$)/g, ' ')}</b></div>`
-    : tv
-    ? `<div><span>Volum</span><b>${tv.mute ? 'mut' : tv.volume}</b></div>`
-    : '';
+  const third = tv ? `<div><span>Volum</span><b>${tv.mute ? 'mut' : tv.volume}</b></div>` : '';
   const connectBtn = d.dlna
-    ? (tv && !tvActive ? `<button class="primary" data-act="tvconnect">${ICONS.connect} Conectează-te</button>` : '')
-    : d.rustdesk_id
-    ? `<button class="primary" data-act="connect" ${online ? '' : 'disabled'}>${ICONS.connect} Conectează-te</button>`
+    ? (tv && !tvActive ? `<button class="primary" data-act="tvconnect">${ICONS.connect} Connect</button>` : '')
+    // A Windows PC counts as prepared once its agent has reported (it then knows how Remote Desktop signs in).
+    : d.windows && d.nla == null
+    ? `<button class="primary" data-act="agent" ${online ? '' : 'disabled'}>${ICONS.connect} Prepare PC</button>`
+    // Prepared and not Windows Home (-1): Connect stays the main button, even before the first Remote
+    // Desktop check (it used to fall back to "Open terminal" then). Greyed out only when it surely won't work.
+    : d.windows && d.nla !== -1
+    ? `<button class="primary" data-act="connect" ${online && d.rdp !== false ? '' : 'disabled'}>${ICONS.connect} Connect</button>`
     : d.ssh
-    ? `<button class="primary" data-act="terminal" ${online ? '' : 'disabled'}>${ICONS.terminal} Deschide terminal</button>`
-    : ['desktop', 'laptop'].includes(d.kind)
-    ? `<button data-act="setrd">${ICONS.connect} Setează ID RustDesk</button>`
+    ? `<button class="primary" data-act="terminal" ${online ? '' : 'disabled'}>${ICONS.terminal} Open terminal</button>`
     : '';
   // Waking only makes sense when it's off, so the button only shows then.
-  const wakeBtn = d.has_wake && st?.online === false ? `<button data-act="wake">${ICONS.power} Pornește de la distanță</button>` : '';
-  const statsBtn = last?.agents_enabled && !stats && online && ['desktop', 'laptop'].includes(d.kind)
-    ? `<button data-act="agent">${ICONS.chart} ${d.has_agent ? 'Reconectează statisticile' : 'Activează statistici'}</button>` : '';
+  const wakeBtn = d.has_wake && st?.online === false ? `<button data-act="wake">${ICONS.power} Wake it up</button>` : '';
   // Response time is mostly noise; it only earns a (quiet) line when the device is up.
-  const latLine = online && d.probe_port && !tv && !stats;
-  const latSpark = latLine ? `<svg class="spark" id="lat-${esc(d.id)}" preserveAspectRatio="none" aria-label="Timp de răspuns, ultimele 3 minute"></svg>` : '';
+  const latLine = online && d.probe_port && !tv;
+  const latSpark = latLine ? `<svg class="spark" id="lat-${esc(d.id)}" preserveAspectRatio="none" aria-label="Response time, last 3 minutes"></svg>` : '';
   return `
   <section class="card device ${checked && !online ? 'is-off' : ''}" data-id="${esc(d.id)}">
     <div class="dev-head">
@@ -523,22 +600,21 @@ function deviceCard(d, st, hist, now, stats, tv, ssh) {
         <span class="pill ${pillCls}"><span class="dot"></span>${pillTxt}</span>
       </div>
       <div class="dev-tools">
-        <button class="icon-btn" data-act="edit" title="Setări">${ICONS.edit}</button>
-        <button class="icon-btn" data-act="remove" title="Scoate din panou">${ICONS.x}</button>
+        <button class="icon-btn" data-act="edit" title="Settings">${ICONS.edit}</button>
+        <button class="icon-btn" data-act="remove" title="Remove from the panel">${ICONS.x}</button>
       </div>
     </div>
     ${online ? `<div class="facts">
-      ${st.latency != null ? `<div><span>Răspuns</span><b>${Math.round(st.latency)} ms</b></div>` : ''}
-      <div><span>Pornit de</span><b>${since}</b></div>
+      ${st.latency != null ? `<div><span>Response</span><b>${Math.round(st.latency)} ms</b></div>` : ''}
+      <div><span>On for</span><b>${since}</b></div>
       ${third}
-      ${speeds[d.id] ? `<div><span>Viteză</span><b>↓${speeds[d.id].down ?? '–'} ↑${speeds[d.id].up ?? '–'}</b></div>` : ''}
     </div>` : !checked ? `<div class="facts">
-      <div><span>Răspuns</span><b class="tbar">${tbarFrame(0)}</b></div>
-      <div><span>Pornit de</span><b class="tbar">${tbarFrame(0)}</b></div>
+      <div><span>Response</span><b class="tbar">${tbarFrame(0)}</b></div>
+      <div><span>On for</span><b class="tbar">${tbarFrame(0)}</b></div>
       ${third}
     </div>${d.probe_port && !d.dlna ? '<svg class="spark"></svg>' : ''}` : ''}
-    ${tvActive ? tvBlock(d, tv) : stats ? statsBlock(d, stats) : ssh && online ? sshStatsBlock(ssh) + latSpark : latLine ? latSpark : ''}
-    ${connectBtn || wakeBtn || statsBtn ? `<div class="actions">${connectBtn}${wakeBtn}${statsBtn}</div>` : ''}
+    ${tvActive ? tvBlock(d, tv) : (stats || ssh) && online ? statsRow(stats || ssh) + latSpark : latLine ? latSpark : ''}
+    ${connectBtn || wakeBtn ? `<div class="actions">${connectBtn}${wakeBtn}</div>` : ''}
   </section>`;
 }
 
@@ -562,24 +638,24 @@ function clock(sec) {
 function tvBlock(d, tv) {
   const playing = tv.state === 'PLAYING', paused = tv.state === 'PAUSED_PLAYBACK';
   const loaded = playing || paused;
-  const label = playing ? 'Rulează' : paused ? 'Pe pauză' : tv.state === 'STOPPED' ? 'Oprit' : 'Nimic nu rulează';
+  const label = playing ? 'Playing' : paused ? 'Paused' : tv.state === 'STOPPED' ? 'Stopped' : 'Nothing playing';
   const pct = loaded && tv.dur ? Math.min(100, 100 * tv.pos / tv.dur) : 0;
   return `
     <div class="tv">
       <div class="tv-now">
         <span class="tv-state ${playing ? 'on' : ''}">${label}</span>
-        <b>${loaded ? esc(tv.title || 'Fără titlu') : '<span class="muted-sm">Controlul merge doar pentru ce trimiți pe TV prin DLNA, nu și în YouTube sau alte aplicații ale televizorului</span>'}</b>
+        <b>${loaded ? esc(tv.title || 'Untitled') : '<span class="muted-sm">Controls work only for what you send to the TV over DLNA, not for YouTube or the TV\'s other apps</span>'}</b>
       </div>
       ${loaded && tv.dur ? `<div class="tv-prog"><span>${clock(tv.pos)}</span><div class="bar"><i style="width:${pct}%"></i></div><span>${clock(tv.dur)}</span></div>` : ''}
       <div class="tv-ctl">
-        <button class="tv-btn" data-tv="seek" data-v="-10" title="Înapoi 10 secunde" ${loaded ? '' : 'disabled'}>${TV_ICONS.back}</button>
-        <button class="tv-btn big" data-tv="${playing ? 'pause' : 'play'}" title="${playing ? 'Pauză' : 'Redă'}" ${loaded || tv.state === 'STOPPED' ? '' : 'disabled'}>${playing ? TV_ICONS.pause : TV_ICONS.play}</button>
-        <button class="tv-btn" data-tv="seek" data-v="10" title="Înainte 10 secunde" ${loaded ? '' : 'disabled'}>${TV_ICONS.fwd}</button>
+        <button class="tv-btn" data-tv="seek" data-v="-10" title="Back 10 seconds" ${loaded ? '' : 'disabled'}>${TV_ICONS.back}</button>
+        <button class="tv-btn big" data-tv="${playing ? 'pause' : 'play'}" title="${playing ? 'Pause' : 'Play'}" ${loaded || tv.state === 'STOPPED' ? '' : 'disabled'}>${playing ? TV_ICONS.pause : TV_ICONS.play}</button>
+        <button class="tv-btn" data-tv="seek" data-v="10" title="Forward 10 seconds" ${loaded ? '' : 'disabled'}>${TV_ICONS.fwd}</button>
         <button class="tv-btn" data-tv="stop" title="Stop" ${loaded ? '' : 'disabled'}>${TV_ICONS.stop}</button>
       </div>
       <div class="tv-vol">
-        <button class="tv-btn ${tv.mute ? 'is-muted' : ''}" data-tv="mute" title="${tv.mute ? 'Pornește sunetul' : 'Fără sonor'}" ${loaded ? '' : 'disabled'}>${tv.mute ? TV_ICONS.muted : TV_ICONS.vol}</button>
-        <input type="range" class="tv-range" min="0" max="100" value="${tv.volume}" style="--p:${tv.volume}%" ${loaded ? '' : 'disabled title="Televizorul permite schimbarea volumului doar în timpul redării prin DLNA"'}>
+        <button class="tv-btn ${tv.mute ? 'is-muted' : ''}" data-tv="mute" title="${tv.mute ? 'Unmute' : 'Mute'}" ${loaded ? '' : 'disabled'}>${tv.mute ? TV_ICONS.muted : TV_ICONS.vol}</button>
+        <input type="range" class="tv-range" min="0" max="100" value="${tv.volume}" style="--p:${tv.volume}%" ${loaded ? '' : 'disabled title="The TV only lets the volume change while playing over DLNA"'}>
         <b class="tv-vol-n">${tv.mute ? 'mut' : tv.volume}</b>
       </div>
     </div>`;
@@ -593,23 +669,10 @@ function meter(label, pct, detail, warn = 70, crit = 90, shown = null) {
     <div class="meter-sub">${detail || '&nbsp;'}</div></div>`;
 }
 
-function statsBlock(d, x) {
-  const memUsed = x.mem_total - x.mem_free, diskUsed = x.disk_total - x.disk_free;
-  return `<div class="stats">
-      ${meter('Procesor', x.cpu, x.top_name ? `cel mai activ: ${esc(x.top_name)} ${Math.round(x.top_cpu)}%` : '')}
-      ${meter('Memorie', 100 * memUsed / x.mem_total, `${bytes(memUsed)} din ${bytes(x.mem_total)}`, 75, 90)}
-      ${meter('Placă video', x.gpu, '')}
-      ${meter('Disc C:', 100 * diskUsed / x.disk_total, `${bytes(x.disk_free)} liber`, 85, 95)}
-    </div>
-    <div class="spark-wrap">
-      <div class="spark-head"><span>Procesor · ultimele minute</span><span>↓ <b>${bytes(x.net_down, true)}</b> &nbsp;↑ <b>${bytes(x.net_up, true)}</b></span></div>
-      <svg class="spark" id="cpu-${esc(d.id)}" preserveAspectRatio="none"></svg>
-    </div>`;
-}
-
 // Read over SSH from Linux devices (no agent installed there).
-// One compact row: label, value and a thin bar each; the details are in the tooltip.
-function sshStatsBlock(x) {
+// One compact row of stats (read over SSH on Linux, sent by the agent on Windows):
+// label, value and a thin bar each; the details are in the tooltip.
+function statsRow(x) {
   const memUsed = x.mem_total - x.mem_free, diskUsed = x.disk_total - x.disk_free;
   const mini = (label, pct, shown, title, warn, crit) => {
     if (pct == null && shown == null) return '';
@@ -618,10 +681,11 @@ function sshStatsBlock(x) {
       <i><i style="width:${p}%;background:${color(p, warn, crit)}"></i></i></div>`;
   };
   return `<div class="minis">
-      ${mini('CPU', x.cpu, x.cpu == null ? '…' : null, 'Procesor', 70, 90)}
-      ${mini('RAM', 100 * memUsed / x.mem_total, null, `Memorie: ${bytes(memUsed)} din ${bytes(x.mem_total)}`, 75, 90)}
-      ${x.temp != null ? mini('Temp', x.temp, `${Math.round(x.temp)}°`, 'Temperatura procesorului', 65, 80) : ''}
-      ${x.disk_total ? mini('Disc', 100 * diskUsed / x.disk_total, null, `Disc: ${bytes(x.disk_free)} liber din ${bytes(x.disk_total)}`, 85, 95) : ''}
+      ${mini('CPU', x.cpu, x.cpu == null ? '…' : null, 'CPU', 70, 90)}
+      ${mini('RAM', 100 * memUsed / x.mem_total, null, `Memory: ${bytes(memUsed)} of ${bytes(x.mem_total)}`, 75, 90)}
+      ${x.temp != null ? mini('Temp', x.temp, `${Math.round(x.temp)}°`, 'CPU temperature', 65, 80) : ''}
+      ${x.gpu != null ? mini('GPU', x.gpu, null, 'Graphics card', 70, 90) : ''}
+      ${x.disk_total ? mini('Disk', 100 * diskUsed / x.disk_total, null, `Disk: ${bytes(x.disk_free)} free of ${bytes(x.disk_total)}`, 85, 95) : ''}
     </div>`;
 }
 
@@ -633,7 +697,7 @@ function esc(s) {
 const chosenKind = {};
 const kindOf = x => chosenKind[x.mac] || (KINDS.some(([k]) => k === x.kind) ? x.kind : 'other');
 
-const KINDS = [['desktop', 'Calculator'], ['laptop', 'Laptop'], ['pi', 'Raspberry Pi'], ['tv', 'TV / media'], ['other', 'Altceva']];
+const KINDS = [['desktop', 'Desktop'], ['laptop', 'Laptop'], ['pi', 'Raspberry Pi'], ['tv', 'TV / media'], ['other', 'Other']];
 
 // Windows reports names in capitals ("OFFICE", "DESKTOP-4F2K"); make the plain ones readable.
 function prettyName(n) {
@@ -646,24 +710,24 @@ let discShowUnknown = false;
 
 function discRow(x) {
   const nice = prettyName(x.name || x.hostname);
-  const title = nice || x.label || x.vendor || 'Dispozitiv necunoscut';
+  const title = nice || x.label || x.vendor || 'Unknown device';
   const sub = (x.label && nice ? `<span class="os-tag">${esc(x.label)}</span> · ` : '') + esc(x.ip);
   const open = discOpen === x.mac;
-  const guess = nice || (x.kind === 'pi' ? 'Raspberry Pi' : x.kind === 'tv' ? 'Televizor' : '');
+  const guess = nice || (x.kind === 'pi' ? 'Raspberry Pi' : x.kind === 'tv' ? 'TV' : '');
   return `
     <div class="disc ${open ? 'open' : ''}" data-ip="${esc(x.ip)}" data-mac="${esc(x.mac)}" title="${esc(x.mac)}">
       <div class="disc-row">
         <div class="dev-icon sm">${ICONS[x.kind] || ICONS.other}</div>
         <div class="disc-info"><b>${esc(title)}</b><div class="dev-sub">${sub}</div></div>
-        ${open ? '' : `<button class="disc-add" data-act="open">${ICONS.plus} Adaugă</button>`}
+        ${open ? '' : `<button class="disc-add" data-act="open">${ICONS.plus} Add</button>`}
       </div>
       ${open ? `
       <div class="disc-form">
-        <input type="text" placeholder="Nume (ex: PC-ul din sufragerie)" value="${esc(guess)}" maxlength="40">
+        <input type="text" placeholder="Name (e.g. Living room PC)" value="${esc(guess)}" maxlength="40">
         <div class="kinds">${KINDS.map(([k, l]) => `<button type="button" class="kind${k === kindOf(x) ? ' sel' : ''}" data-kind="${k}">${l}</button>`).join('')}</div>
         <div class="disc-btns">
-          <button data-act="cancel">Anulează</button>
-          <button class="primary" data-act="add">${ICONS.plus} Adaugă în panou</button>
+          <button data-act="cancel">Cancel</button>
+          <button class="primary" data-act="add">${ICONS.plus} Add to panel</button>
         </div>
       </div>` : ''}
     </div>`;
@@ -671,7 +735,7 @@ function discRow(x) {
 
 function discoveredCard(list, lastScan, now) {
   const ago = lastScan ? Math.max(0, Math.round((now - lastScan) / 60)) : null;
-  const when = ago == null ? 'se caută…' : ago < 1 ? 'acum' : `acum ${ago} min`;
+  const when = ago == null ? 'searching…' : ago < 1 ? 'just now' : `${ago} min ago`;
   list = list.filter(x => x.kind !== 'router');
   // Things we could put a name or an OS on come first; the anonymous rest waits behind a toggle.
   const known = list.filter(x => x.name || x.hostname || x.label);
@@ -679,15 +743,15 @@ function discoveredCard(list, lastScan, now) {
   const showUnknown = discShowUnknown || unknown.some(x => x.mac === discOpen);
   const rows = known.map(discRow).join('') + (showUnknown ? unknown.map(discRow).join('') : '');
   const toggle = unknown.length
-    ? `<button class="disc-more" data-act="unknown">${showUnknown ? 'Ascunde dispozitivele necunoscute'
-        : `Arată încă ${unknown.length} ${unknown.length === 1 ? 'dispozitiv necunoscut' : 'dispozitive necunoscute'}`}</button>` : '';
+    ? `<button class="disc-more" data-act="unknown">${showUnknown ? 'Hide unknown devices'
+        : `Show ${unknown.length} more unknown ${unknown.length === 1 ? 'device' : 'devices'}`}</button>` : '';
   return `
   <section class="card" id="disc-card">
-    <h2>Găsite în rețea <span class="disc-head"><span class="muted-sm">ultima căutare: ${when}</span>
-      <button class="icon-btn" data-act="scan" title="Caută din nou">${ICONS.refresh}</button></span></h2>
+    <h2>Found on the network <span class="disc-head"><span class="muted-sm">last search: ${when}</span>
+      <button class="icon-btn" data-act="scan" title="Search again">${ICONS.refresh}</button></span></h2>
     ${rows ? `<div class="disc-list">${rows}</div>` : ''}
     ${toggle}
-    ${list.length ? '' : '<div class="dev-sub">Nimic nou în rețea. Când pornești un dispozitiv nou (ex: un Raspberry Pi), apare aici în cel mult 30 de secunde.</div>'}
+    ${list.length ? '' : '<div class="dev-sub">Nothing new on the network. Turn on a new device (a Raspberry Pi, say) and it shows up here within 30 seconds.</div>'}
   </section>`;
 }
 
@@ -719,11 +783,11 @@ function renderInternet(s) {
   const data = s.history?.net_lat || [];
   const box = $('inet');
   box.className = 'net ' + (n == null ? '' : ok ? 'on' : 'off');
-  box.title = n == null ? 'Internet: se verifică' : ok
-    ? `Internet${n.ssid ? ' · ' + n.ssid : ''}${n.since ? ' · stabil de ' + dur(s.now - n.since) : ''} · ultimele ${Math.round(data.length * 4 / 60)} min`
-    : 'Internetul nu merge';
+  box.title = n == null ? 'Internet: checking' : ok
+    ? `Internet${n.ssid ? ' · ' + n.ssid : ''}${n.since ? ' · stable for ' + dur(s.now - n.since) : ''} · last ${Math.round(data.length * 4 / 60)} min`
+    : 'The internet is down';
   if (!box.querySelector('.net-chart')) {
-    box.innerHTML = `<svg class="net-chart" preserveAspectRatio="none" role="img" aria-label="Timp de răspuns spre internet"></svg>`;
+    box.innerHTML = `<svg class="net-chart" preserveAspectRatio="none" role="img" aria-label="Response time to the internet"></svg>`;
     const svg = box.querySelector('.net-chart');
     svg.addEventListener('mousemove', e => {
       const d = last?.history?.net_lat || [];
@@ -740,8 +804,8 @@ function renderInternet(s) {
   ms.className = 'bat-net' + (n && !ok ? ' off' : '');
   const icon = wifiIcon(s.netbook?.net?.signal, n == null || ok);
   ms.innerHTML = n == null ? `${icon}<span>Internet …</span>`
-    : !ok ? `${icon}<span>Internet <b>picat de ${dur(s.now - n.down_since)}</b></span>`
-    : `${icon}<span>Internet <b>${n.latency != null ? Math.round(n.latency) + ' ms' : 'conectat'}</b></span>`;
+    : !ok ? `${icon}<span>Internet <b>down for ${dur(s.now - n.down_since)}</b></span>`
+    : `${icon}<span>Internet <b>${n.latency != null ? Math.round(n.latency) + ' ms' : 'connected'}</b></span>`;
   drawNetChart(box.querySelector('.net-chart'), data, ok !== false);
 }
 
@@ -793,16 +857,16 @@ function drawNetChart(svg, data, ok) {
 }
 
 function renderEvents(list) {
-  if (!list.length) { $('events').innerHTML = '<div class="dev-sub">Nimic deocamdată. Aici apar porniri, opriri, căderi de internet și dispozitive noi.</div>'; return; }
+  if (!list.length) { $('events').innerHTML = '<div class="dev-sub">Nothing yet. Devices turning on and off, internet outages and new devices show up here.</div>'; return; }
   const today = new Date().toDateString(), yest = new Date(Date.now() - 864e5).toDateString();
   let day = null, html = '';
   for (const e of list) {
     const d = new Date(e.t * 1000), ds = d.toDateString();
     if (ds !== day) {
       day = ds;
-      html += `<div class="ev-day">${ds === today ? 'Azi' : ds === yest ? 'Ieri' : d.toLocaleDateString('ro-RO', { day: 'numeric', month: 'long' })}</div>`;
+      html += `<div class="ev-day">${ds === today ? 'Today' : ds === yest ? 'Yesterday' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}</div>`;
     }
-    html += `<div class="ev ${esc(e.kind)}"><time>${d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}</time><i></i><span>${esc(e.text)}</span></div>`;
+    html += `<div class="ev ${esc(e.kind)}"><time>${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</time><i></i><span>${esc(e.text)}</span></div>`;
   }
   if ($('events').dataset.html !== html) { $('events').innerHTML = html; $('events').dataset.html = html; }
 }
@@ -819,10 +883,13 @@ function render(s) {
   const h = s.history || {};
 
   // Devices
-  const html = s.devices.map(d => deviceCard(d, s.status[d.id], h['lat:' + d.id], s.now, s.stats?.[d.id], s.tv?.[d.id], s.sshstats?.[d.id])).join('');
+  // On devices first, then the ones still being checked, then the off ones; the list order otherwise stays.
+  const rank = d => ({ true: 0, false: 2 })[s.status[d.id]?.online] ?? 1;
+  const sorted = s.devices.map((d, i) => [d, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([d]) => d);
+  const html = sorted.map(d => deviceCard(d, s.status[d.id], h['lat:' + d.id], s.now, s.stats?.[d.id], s.tv?.[d.id], s.sshstats?.[d.id])).join('');
   const box = $('devices');
-  const empty = `<section class="card welcome"><h3>Bun venit în Homebase</h3>
-    <p>Aici apar dispozitivele tale. Alege-le din lista <b>Găsite în rețea</b> de mai jos și apasă <b>Adaugă</b>.</p></section>`;
+  const empty = `<section class="card welcome"><h3>Welcome to Homebase</h3>
+    <p>Your devices show up here. Pick them from <b>Found on the network</b> below and press <b>Add</b>.</p></section>`;
   const out = html || empty;
   if (box.dataset.html !== out && !pointerHeld && !box.querySelector('.busy, .drop')) { box.innerHTML = out; box.dataset.html = out; }
 
@@ -837,6 +904,7 @@ function render(s) {
     if (el) spark(el, [{ data: h['lat:' + d.id], col: 'var(--dim)' }]);
   }
 
+  renderDetail(s);
   renderInternet(s);
   renderEvents((s.events || []).slice(0, 6));
 
@@ -851,7 +919,7 @@ function render(s) {
   gauge($('g-temp'), t ? (t - 30) / 70 * 100 : 0, t ? Math.round(t) + '°' : '–', t ? color(t, 70, 85) : 'var(--dim)');
 
   const b = nb.battery;
-  $('bat').innerHTML = b ? `${batteryIcon(b)}<span>Baterie <b>${b.pct}%</b> · ${{ Charging: 'se încarcă', Discharging: 'pe baterie', Full: 'plină', 'Not charging': 'în priză' }[b.status] || esc(b.status)}</span>` : '';
+  $('bat').innerHTML = b ? `${batteryIcon(b)}<span>Battery <b>${b.pct}%</b> · ${{ Charging: 'charging', Discharging: 'on battery', Full: 'full', 'Not charging': 'plugged in' }[b.status] || esc(b.status)}</span>` : '';
 }
 
 async function poll() {
@@ -862,7 +930,7 @@ async function poll() {
     render(last);
     $('stale').textContent = '';
   } catch {
-    if (Date.now() - lastOk > 6000) $('stale').innerHTML = '<span class="stale">fără conexiune la server</span>';
+    if (Date.now() - lastOk > 6000) $('stale').innerHTML = '<span class="stale">no connection to the server</span>';
   }
 }
 
@@ -874,20 +942,19 @@ start();
 
 function tick() {
   const d = new Date();
-  $('clock').textContent = d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
-  $('date').textContent = d.toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' });
+  $('clock').textContent = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  $('date').textContent = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 tick(); setInterval(tick, 10000);
 
 // --- Built-in terminal (xterm.js, loaded only the first time it's needed) ---
 let termDev = null, termMode = 'shell';
-const speeds = {};  // last speed test per device, shown on its card until the page reloads
 // What the terminal window says it's doing, per mode.
 const TERM_MODES = {
   shell: null,
-  update: 'Actualizez sistemul (sudo apt update && full-upgrade)…',
-  reboot: 'Repornesc dispozitivul…',
-  poweroff: 'Opresc dispozitivul…',
+  update: 'Updating the system (sudo apt update && full-upgrade)…',
+  reboot: 'Restarting the device…',
+  poweroff: 'Shutting the device down…',
 };
 let term = null, termSid = null, termES = null, termFit = null, termEnded = false, termTail = '';
 let termPending = '', termSending = false;
@@ -941,9 +1008,9 @@ async function openTerminal(dev, mode = 'shell') {
   // Nothing is assumed about the login: the first time, ask which user to sign in as.
   if (!dev.ssh_user) {
     const user = await dialog({
-      title: `Cu ce utilizator intri pe ${dev.name}?`, icon: 'terminal', ok: 'Conectează-te',
-      text: 'Cel ales când ai instalat sistemul (în Raspberry Pi Imager: „username”). Îl ține minte; îl poți schimba din ✎.',
-      input: { placeholder: 'ex: pi, admin, ubuntu', validate: v => v ? USER_OK(v) : 'Scrie utilizatorul' },
+      title: `Which user do you sign in to ${dev.name} as?`, icon: 'terminal', ok: 'Connect',
+      text: 'The one picked when the system was installed (in Raspberry Pi Imager: "username"). It\'s remembered; change it with ✎.',
+      input: { placeholder: 'e.g. pi, admin, ubuntu', validate: v => v ? USER_OK(v) : 'Type a user name' },
     });
     if (!user || !await saveDevice(dev.id, { ssh_user: user })) return;
     dev = last.devices.find(x => x.id === dev.id) || { ...dev, ssh_user: user };
@@ -953,12 +1020,12 @@ async function openTerminal(dev, mode = 'shell') {
   closeTerminal();
   $('term-name').textContent = dev.name;
   $('term-host').textContent = `${dev.ssh_user ? dev.ssh_user + '@' : ''}${dev.host}`;
-  termStatus('Se conectează…', true);
-  $('term-body').innerHTML = '<div class="term-loading"><span class="spin"></span>Se pregătește terminalul…</div>';
+  termStatus('Connecting…', true);
+  $('term-body').innerHTML = '<div class="term-loading"><span class="spin"></span>Getting the terminal ready…</div>';
   $('term-modal').hidden = false;
   startRain();
   try { await loadTerminalLib(); }
-  catch { closeTerminal(); toast('Nu s-a putut încărca terminalul', 'err'); return; }
+  catch { closeTerminal(); toast('Couldn\'t load the terminal', 'err'); return; }
   $('term-body').innerHTML = '';
 
   term = new Terminal({
@@ -973,7 +1040,7 @@ async function openTerminal(dev, mode = 'shell') {
   term.open($('term-body'));
   termFit.fit();
   term.focus();
-  term.writeln(`\x1b[90mSe conectează la ${dev.name}…\x1b[0m`);
+  term.writeln(`\x1b[90mConnecting to ${dev.name}…\x1b[0m`);
   if (TERM_MODES[mode]) term.writeln(`\x1b[32m${TERM_MODES[mode]}\x1b[0m`);
   termEnded = false; termTail = '';
 
@@ -1006,19 +1073,19 @@ async function openTerminal(dev, mode = 'shell') {
       $('term-actions').innerHTML = btns.map(([act, label]) => `<button data-term="${act}">${label}</button>`).join('');
     };
     if (/REMOTE HOST IDENTIFICATION HAS CHANGED|Host key verification failed/.test(termTail)) {
-      say('Dispozitivul are altă cheie decât data trecută. Normal dacă l-ai reinstalat; altfel, atenție.',
-          ['newkey', 'Acceptă cheia nouă'], ['retry', 'Reîncearcă']);
+      say('The device has a different key than last time. Normal if you reinstalled it; otherwise, be careful.',
+          ['newkey', 'Accept the new key'], ['retry', 'Retry']);
     } else if (/Permission denied|Too many authentication failures/.test(termTail)) {
-      say(`Utilizator sau parolă greșită (utilizator: ${termDev.ssh_user}).`, ['user', 'Schimbă utilizatorul'], ['retry', 'Reîncearcă']);
+      say(`Wrong user or password (user: ${termDev.ssh_user}).`, ['user', 'Change user'], ['retry', 'Retry']);
     } else if (/Connection refused|Connection reset|Connection closed by/.test(termTail)) {
-      say('SSH nu răspunde încă. Dacă abia l-ai pornit, așteaptă 1–2 minute (la prima pornire, un Pi Zero poate dura ~5 min). ' +
-          'Dacă tot nu merge, SSH e oprit: activează-l din Raspberry Pi Imager sau cu sudo raspi-config.', ['retry', 'Reîncearcă']);
+      say('SSH isn\'t answering yet. If you just turned it on, wait 1–2 minutes (a Pi Zero can take ~5 min on its first boot). ' +
+          'If it still fails, SSH is off: turn it on in Raspberry Pi Imager or with sudo raspi-config.', ['retry', 'Retry']);
     } else if (/timed out|No route to host|Could not resolve/.test(termTail)) {
-      say('Dispozitivul nu răspunde. Verifică dacă e pornit și conectat la rețea.', ['retry', 'Reîncearcă']);
+      say('The device isn\'t answering. Check that it\'s on and connected to the network.', ['retry', 'Retry']);
     } else if (termMode === 'shell') {
-      $('term-actions').innerHTML = '<button data-term="retry">Reconectează</button>';
+      $('term-actions').innerHTML = '<button data-term="retry">Reconnect</button>';
     }
-    term.writeln('\r\n\x1b[90m[Conexiune închisă · apasă orice tastă ca să închizi]\x1b[0m');
+    term.writeln('\r\n\x1b[90m[Connection closed · press any key to close]\x1b[0m');
   });
   // The server never resends from the middle, so don't let EventSource auto-reconnect.
   termES.onerror = () => { if (termES.readyState !== EventSource.CLOSED) termES.close(); };
@@ -1088,11 +1155,11 @@ $('term-actions').addEventListener('click', async e => {
   if (act === 'newkey') {
     const r = await busy(e.target.closest('button'), () =>
       fetch(`/api/sshreset/${encodeURIComponent(dev.id)}`, { method: 'POST' }).then(r => r.json()).catch(() => ({})), 400);
-    if (!r.ok) return toast('Nu s-a putut șterge cheia veche', 'err');
+    if (!r.ok) return toast('Couldn\'t remove the old key', 'err');
   }
   if (act === 'user') {
-    const user = await dialog({ title: 'Utilizator SSH', icon: 'terminal', ok: 'Conectează-te',
-      input: { value: dev.ssh_user || '', validate: v => v ? USER_OK(v) : 'Scrie utilizatorul' } });
+    const user = await dialog({ title: 'SSH user', icon: 'terminal', ok: 'Connect',
+      input: { value: dev.ssh_user || '', validate: v => v ? USER_OK(v) : 'Type a user name' } });
     if (!user || !await saveDevice(dev.id, { ssh_user: user })) return;
   }
   openTerminal(last.devices.find(x => x.id === dev.id) || dev, termMode);
@@ -1113,23 +1180,25 @@ function toast(msg, kind = 'ok') {
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), kind === 'err' ? 5000 : 3000);
 }
 
+// "Prepare PC": one command, pasted once on a Windows PC, sets up stats and Remote Desktop.
 async function showAgentSetup(id) {
   let j;
   try { j = await (await fetch(`/api/agent/${encodeURIComponent(id)}`, { method: 'POST' })).json(); } catch {}
-  if (!j?.ok) return toast('Nu s-a putut genera comanda', 'err');
+  if (!j?.ok) return toast('Couldn\'t make the command', 'err');
   const back = document.createElement('div');
   back.className = 'dlg-back';
   back.innerHTML = `
     <div class="dlg" role="dialog" aria-modal="true" style="width:min(520px,100%)">
-      <div class="di info">${ICONS.chart}</div>
-      <h3>Activează statisticile PC-ului</h3>
+      <div class="di info">${ICONS.connect}</div>
+      <h3>Prepare this PC</h3>
+      <p>Once per Windows PC. After that you see it live here and connect to it in one click.</p>
       <ol>
-        <li>Pe PC, apasă <b>Win + X</b> și alege <b>Terminal</b> (sau <b>Windows PowerShell</b>).</li>
-        <li>Lipește comanda de mai jos și apasă <b>Enter</b>.</li>
+        <li>On the PC, press <b>Win + X</b> and pick <b>Terminal (Admin)</b> (or <b>Windows PowerShell (Admin)</b>), then <b>Yes</b>.</li>
+        <li>Paste the command below and press <b>Enter</b>. It shows its progress and takes 1–2 minutes.</li>
       </ol>
-      <div class="cmd"><code>${esc(j.command)}</code><button data-r="copy" title="Copiază">Copiază</button></div>
-      <p style="margin-top:12px;font-size:12px">Comanda merge 15 minute. Dacă ești conectat prin RustDesk, poți copia aici și lipi direct pe PC. Statisticile apar în câteva secunde.</p>
-      <div class="row-btns"><button data-r="no" class="primary">Gata</button></div>
+      <div class="cmd"><code>${esc(j.command)}</code><button data-r="copy" title="Copy">Copy</button></div>
+      <p style="margin-top:12px;font-size:12px">The command works for 15 minutes. It turns on stats, Remote Desktop and SSH; when you connect, you sign in on the usual Windows screen with your PIN or password.</p>
+      <div class="row-btns"><button data-r="no" class="primary">Done</button></div>
     </div>`;
   document.body.appendChild(back);
   requestAnimationFrame(() => back.classList.add('show'));
@@ -1145,76 +1214,73 @@ async function showAgentSetup(id) {
         const range = document.createRange(); range.selectNodeContents(back.querySelector('code'));
         getSelection().removeAllRanges(); getSelection().addRange(range); document.execCommand('copy');
       }
-      toast('Comanda a fost copiată', 'ok');
+      toast('Command copied', 'ok');
     }
   });
 }
 
 // In-app replacement for confirm()/prompt(). Resolves to true / the typed text, or null if cancelled.
-const RID_OK = v => !v || /^\d{8,12}$/.test(v.replace(/\s/g, '')) ? '' : 'ID-ul RustDesk are doar cifre (9–10).';
-const USER_OK = v => !v || /^[A-Za-z_][A-Za-z0-9_.-]{0,31}$/.test(v) ? '' : 'Utilizatorul poate avea doar litere, cifre și - _ .';
+const USER_OK = v => !v || /^[A-Za-z_][A-Za-z0-9_.-]{0,31}$/.test(v) ? '' : 'A user name can only have letters, digits and - _ .';
 
 async function saveDevice(id, changes) {
   try {
     const j = await (await fetch(`/api/edit/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(changes) })).json();
-    if (!j.ok) { toast(j.error || 'Nu s-a putut salva', 'err'); return false; }
-  } catch { toast('Eroare: serverul nu răspunde', 'err'); return false; }
+    if (!j.ok) { toast(j.error || 'Couldn\'t save', 'err'); return false; }
+  } catch { toast('Error: the server isn\'t responding', 'err'); return false; }
   await poll();
   return true;
 }
 
-// One place to change what's specific to each person's device: name, SSH user, RustDesk ID.
+// One place to change what's specific to each person's device: name, user and password.
 async function editDevice(d) {
   if (!d) return;
-  const fields = [{ key: 'name', label: 'Nume', value: d.name, validate: v => v ? '' : 'Scrie un nume' }];
+  const fields = [{ key: 'name', label: 'Name', value: d.name, validate: v => v ? '' : 'Type a name' }];
   if (d.kind !== 'tv') {
-    fields.push({ key: 'ssh_user', label: 'Utilizator SSH', value: d.ssh_user || '', placeholder: 'ex: pi, admin, ubuntu',
+    fields.push({ key: 'ssh_user', label: d.windows ? 'Windows user' : 'SSH user', value: d.ssh_user || '',
+                  placeholder: d.windows ? 'what whoami shows after \\' : 'e.g. pi, admin, ubuntu',
                   hint: d.windows
-                    ? 'Utilizatorul de Windows. Pe PC activează întâi „OpenSSH Server” (Setări › Sistem › Funcții opționale).'
-                    : 'Cel ales la instalarea sistemului (în Raspberry Pi Imager: „username”).',
+                    ? 'For Remote Desktop and SSH. If Windows asks for something else when signing in (like your Microsoft account email), type it there and it\'s remembered.'
+                    : 'The one picked when the system was installed (in Raspberry Pi Imager: "username").',
                   validate: v => v ? USER_OK(v) : '' });
   }
-  if (['desktop', 'laptop', 'other'].includes(d.kind) || d.rustdesk_id) {
-    fields.push({ key: 'rustdesk_id', label: 'ID RustDesk', value: d.rustdesk_id || '', numeric: true, placeholder: 'ex: 1 234 567 890',
-                  hint: 'Numărul de la „ID” din RustDesk, pe dispozitiv. Gol dacă nu folosești RustDesk.', validate: RID_OK });
-  }
   if (d.kind !== 'tv') {
-    fields.push({ key: 'ssh_password', label: 'Parolă SSH', secret: true,
-                  placeholder: d.key ? 'deja configurat' : 'parola dispozitivului',
-                  hint: d.key ? 'Accesul fără parolă merge. Scrie parola doar ca să-l refaci; „Scoate cheia” îl oprește.'
-                              : 'Folosită o singură dată, ca să configureze accesul fără parolă. Nu se salvează nicăieri.' });
+    fields.push({ key: 'ssh_password', label: 'SSH password', secret: true,
+                  placeholder: d.key ? 'already set up' : 'the device\'s password',
+                  hint: d.key ? 'Password-free access works. Type the password only to set it up again; "Remove key" turns it off.'
+                    : d.windows ? 'Only if SSH is on the PC: once, for direct file sending, speed tests and restarts. It isn\'t saved. Remote Desktop asks for its own password.'
+                    : 'Used once, to set up password-free access. It isn\'t saved anywhere.' });
   }
-  const v = await dialog({ title: 'Setări dispozitiv', icon: d.kind in ICONS ? d.kind : 'other', ok: 'Salvează', fields,
-                          extra: d.key ? { key: 'keyremove', label: 'Scoate cheia' } : null });
+  const v = await dialog({ title: 'Device settings', icon: d.kind in ICONS ? d.kind : 'other', ok: 'Save', fields,
+                          extra: d.key ? { key: 'keyremove', label: 'Remove key' } : null });
   if (!v) return;
   if (v._extra === 'keyremove') return removeKey(d);
   const password = v.ssh_password;
   delete v.ssh_password;
   if (!await saveDevice(d.id, v)) return;
-  if (!password) return toast('Salvat', 'ok');
-  if (!v.ssh_user) return toast('Salvat. Pentru acces fără parolă, completează și utilizatorul SSH.', 'err');
-  toastProgress(`Configurez accesul fără parolă pe ${v.name || d.name}…`);
+  if (!password) return toast('Saved', 'ok');
+  if (!v.ssh_user) return toast('Saved. For password-free access, fill in the SSH user too.', 'err');
+  toastProgress(`Setting up password-free access on ${v.name || d.name}…`);
   let j;
   try {
     j = await (await fetch(`/api/keysetup/${encodeURIComponent(d.id)}`, { method: 'POST', body: JSON.stringify({ password }) })).json();
   } catch {}
-  if (j?.ok) toast(`Gata! ${v.name || d.name} merge acum fără parolă`, 'ok');
-  else toast(j?.error || 'Eroare: serverul nu răspunde', 'err');
+  if (j?.ok) toast(`Done! ${v.name || d.name} now works without a password`, 'ok');
+  else toast(j?.error || 'Error: the server isn\'t responding', 'err');
   poll();
 }
 
 async function removeKey(d) {
   const go = await dialog({
-    title: `Scoți accesul fără parolă de pe ${d.name}?`, icon: 'x', danger: true, ok: 'Scoate',
-    text: 'Homebase își șterge cheia de pe dispozitiv. Statisticile, fișierele și testul de viteză nu mai merg ' +
-          'până pui din nou parola în setări. Terminalul merge în continuare, cu parolă.',
+    title: `Remove password-free access from ${d.name}?`, icon: 'x', danger: true, ok: 'Remove',
+    text: 'Homebase deletes its key from the device. Stats, files and the speed test stop working ' +
+          'until you type the password in settings again. The terminal still works, with a password.',
   });
   if (!go) return;
-  toastProgress(`Scot cheia de pe ${d.name}…`);
+  toastProgress(`Removing the key from ${d.name}…`);
   let j;
   try { j = await (await fetch(`/api/keyremove/${encodeURIComponent(d.id)}`, { method: 'POST' })).json(); } catch {}
-  if (j?.ok) toast(`Accesul fără parolă pe ${d.name} a fost scos`, 'ok');
-  else toast(j?.error || 'Eroare: serverul nu răspunde', 'err');
+  if (j?.ok) toast(`Password-free access removed from ${d.name}`, 'ok');
+  else toast(j?.error || 'Error: the server isn\'t responding', 'err');
   poll();
 }
 
@@ -1239,7 +1305,7 @@ function dialog({ title, text = '', icon = 'info', ok = 'OK', danger = false, in
         ${list.length ? '<div class="err-msg"></div>' : ''}
         <div class="row-btns">
           ${extra ? `<button data-r="extra" class="dlg-extra">${esc(extra.label)}</button>` : ''}
-          <button data-r="no">Anulează</button>
+          <button data-r="no">Cancel</button>
           <button data-r="yes" class="${danger ? 'danger' : 'primary'}">${esc(ok)}</button>
         </div>
       </div>`;
@@ -1286,14 +1352,14 @@ async function tvSend(id, op, value) {
     const r = await fetch(`/api/tv/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify({ op, value }) });
     const j = await r.json();
     if (!j.ok) toast(op === 'volume' || op === 'mute'
-      ? 'Televizorul n-a schimbat volumul. Îl acceptă doar în timpul redării prin DLNA.'
-      : 'Televizorul n-a răspuns la comandă', 'err');
-  } catch { toast('Eroare: serverul nu răspunde', 'err'); }
+      ? 'The TV didn\'t change the volume. It only accepts it while playing over DLNA.'
+      : 'The TV didn\'t respond', 'err');
+  } catch { toast('Error: the server isn\'t responding', 'err'); }
   poll();
 }
 
-// TV buttons (captured before the generic device-button handler below).
-$('devices').addEventListener('click', e => {
+// TV buttons (captured before the generic button handlers), on the cards and in the TV's big screen.
+function onTvButton(e) {
   const b = e.target.closest('button[data-tv]');
   if (!b || b.disabled) return;
   e.stopImmediatePropagation();
@@ -1301,52 +1367,63 @@ $('devices').addEventListener('click', e => {
   const op = b.dataset.tv;
   const value = op === 'seek' ? Math.max(0, (tv?.pos || 0) + Number(b.dataset.v)) : op === 'mute' ? !tv?.mute : undefined;
   busy(b, () => tvSend(id, op, value), 300);
-}, true);
+}
 
 $('devices').addEventListener('pointerdown', () => { pointerHeld = true; });
 // Only clear the flag here; the next poll redraws. Redrawing right now would land before the click fires.
 addEventListener('pointerup', () => { pointerHeld = false; });
 addEventListener('pointercancel', () => { pointerHeld = false; });
 // Volume: show the number live while dragging, send when released.
-$('devices').addEventListener('input', e => {
+function onTvVolumeInput(e) {
   if (!e.target.classList?.contains('tv-range')) return;
   e.target.style.setProperty('--p', e.target.value + '%');
   e.target.parentElement.querySelector('.tv-vol-n').textContent = e.target.value;
-});
-$('devices').addEventListener('change', e => {
+}
+function onTvVolumeChange(e) {
   if (!e.target.classList?.contains('tv-range')) return;
   pointerHeld = false;
   tvSend(e.target.closest('[data-id]').dataset.id, 'volume', Number(e.target.value));
-});
+}
+for (const box of [$('devices'), $('dv-side')]) {
+  box.addEventListener('click', onTvButton, true);
+  box.addEventListener('input', onTvVolumeInput);
+  box.addEventListener('change', onTvVolumeChange);
+}
 
 $('devices').addEventListener('click', async e => {
   const btn = e.target.closest('button[data-act]');
+  // Anywhere else on a card (not a button or the TV controls) opens its big screen.
+  if (!btn && !e.target.closest('button, input, a')) {
+    const card = e.target.closest('.device');
+    if (card) openDetail(card.dataset.id);
+    return;
+  }
   if (!btn || btn.disabled) return;
   const card = btn.closest('[data-id]');
   const id = card.dataset.id, act = btn.dataset.act;
   if (act === 'terminal') return openTerminal(last.devices.find(d => d.id === id));
   if (act === 'agent') return showAgentSetup(id);
-  if (act === 'tvconnect') return toast('Conectarea la televizor vine în curând', 'info');
-  if (act === 'edit' || act === 'setrd') return editDevice(last.devices.find(d => d.id === id));
+  if (act === 'tvconnect') return toast('Connecting to the TV is coming soon', 'info');
+  if (act === 'edit') return editDevice(last.devices.find(d => d.id === id));
   if (act === 'remove' && !await dialog({
-    title: `Scoți „${card.querySelector('.dev-name').textContent}”?`,
-    text: 'Dispare din panou. Dacă îl adaugi din nou, își recuperează setările.',
-    icon: 'x', ok: 'Scoate', danger: true,
+    title: `Remove "${card.querySelector('.dev-name').textContent}"?`,
+    text: 'It disappears from the panel. Add it again later and its settings come back.',
+    icon: 'x', ok: 'Remove', danger: true,
   })) return;
-  if (act === 'connect') toast('Se deschide RustDesk… poate dura câteva secunde', 'info');
-  // RustDesk takes a few seconds to show its window, so keep the spinner up meanwhile.
+  if (act === 'connect') toast('Opening Remote Desktop… this can take a few seconds', 'info');
+  // Remmina takes a few seconds to show its window, so keep the spinner up meanwhile.
   await busy(btn, async () => {
     try {
       const r = await fetch(`/api/${act}/${encodeURIComponent(id)}`, { method: 'POST' });
       const j = await r.json();
       const [msg, kind] = {
-        wake: ['Semnal de pornire trimis. Poate dura un minut.', 'info'],
-        connect: j.ok ? [null] : ['Nu s-a putut deschide RustDesk', 'err'],
-        remove: ['Scos din panou', 'ok'],
+        wake: ['Wake-up signal sent. It can take a minute.', 'info'],
+        connect: j.ok ? [null] : [j.error || 'Couldn\'t open Remote Desktop', 'err'],
+        remove: ['Removed from the panel', 'ok'],
       }[act];
       if (msg) toast(msg, kind);
       if (act === 'remove') await poll();
-    } catch { toast('Eroare: serverul nu răspunde', 'err'); }
+    } catch { toast('Error: the server isn\'t responding', 'err'); }
   }, act === 'connect' ? 4000 : 600);
 });
 
@@ -1387,7 +1464,7 @@ $('discovered').addEventListener('click', async e => {
   if (btn.dataset.act === 'scan') {
     // A sweep takes ~4 s; keep the refresh icon spinning until the new results are in.
     return busy(btn, async () => {
-      try { await fetch('/api/scan', { method: 'POST' }); } catch { return toast('Eroare: serverul nu răspunde', 'err'); }
+      try { await fetch('/api/scan', { method: 'POST' }); } catch { return toast('Error: the server isn\'t responding', 'err'); }
       await new Promise(r => setTimeout(r, 4500));
       await poll();
     });
@@ -1395,7 +1472,7 @@ $('discovered').addEventListener('click', async e => {
   if (btn.dataset.act === 'add') {
     const row = btn.closest('.disc');
     const name = row.querySelector('input').value.trim();
-    if (!name) { toast('Scrie un nume', 'err'); return row.querySelector('input').focus(); }
+    if (!name) { toast('Type a name', 'err'); return row.querySelector('input').focus(); }
     // Adding a TV looks it up on the network first, so this can take a few seconds.
     await busy(btn, async () => {
       try {
@@ -1404,11 +1481,11 @@ $('discovered').addEventListener('click', async e => {
           body: JSON.stringify({ ip: row.dataset.ip, mac: row.dataset.mac, name, kind: row.querySelector('.kind.sel')?.dataset.kind || 'other' }),
         });
         const j = await r.json();
-        toast(j.ok ? `„${name}” a fost adăugat` : 'Nu s-a putut adăuga', j.ok ? 'ok' : 'err');
+        toast(j.ok ? `"${name}" added` : 'Couldn\'t add it', j.ok ? 'ok' : 'err');
         if (j.ok) discOpen = null;
         document.activeElement.blur();
         await poll();
-      } catch { toast('Eroare: serverul nu răspunde', 'err'); }
+      } catch { toast('Error: the server isn\'t responding', 'err'); }
     });
   }
 });
@@ -1418,14 +1495,20 @@ $('discovered').addEventListener('click', async e => {
 // [action, label, command] per device; the command is what you type in the palette.
 function deviceActions(d) {
   const out = [];
-  if (d.ssh) out.push(['terminal', 'Deschide terminal', 'ssh']);
-  if (d.rustdesk_id) out.push(['connect', 'Conectare RustDesk', 'connect']);
-  if (d.has_wake) out.push(['wake', 'Pornește de la distanță', 'wake']);
-  if (d.ssh && !d.key) out.push(['key', 'Acces fără parolă…', 'key']);
+  if (d.kind === 'tv') return out;  // TVs are driven over DLNA, never SSH
+  if (d.ssh) out.push(['terminal', 'Open terminal', 'ssh']);
+  if (d.windows && d.nla == null) out.push(['prepare', 'Prepare PC', 'prepare']);
+  else if (d.windows && d.nla !== -1) out.push(['connect', 'Remote Desktop', 'rdp']);
+  // Prepared before SSH was part of it (or SSH failed): running the command again adds it.
+  if (d.windows && d.nla != null && !d.key) out.push(['prepare', 'Prepare again (adds SSH)', 'prepare']);
+  if (d.has_wake) out.push(['wake', 'Wake it up', 'wake']);
+  if (d.ssh && !d.key) out.push(['key', 'Password-free access…', 'key']);
+  // Without SSH, a Windows PC still gets files: they go to the laptop folder Remote Desktop shares with it.
+  if (!d.key && d.windows) out.push(['send', 'Send files…', 'send']);
   if (d.key) {
-    out.push(['send', 'Trimite fișiere…', 'send'], ['speed', 'Test de viteză', 'speed']);
-    if (!d.windows) out.push(['update', 'Actualizează sistemul', 'update']);
-    out.push(['reboot', 'Repornește', 'reboot'], ['poweroff', 'Oprește', 'poweroff']);
+    out.push(['send', 'Send files…', 'send'], ['speed', 'Speed test', 'speed']);
+    if (!d.windows) out.push(['update', 'Update the system', 'update']);
+    out.push(['reboot', 'Restart', 'reboot'], ['poweroff', 'Shut down', 'poweroff']);
   }
   return out;
 }
@@ -1435,13 +1518,14 @@ async function doAction(act, d) {
   const name = d.name;
   if (act === 'terminal') return openTerminal(d);
   if (act === 'edit') return editDevice(d);
+  if (act === 'prepare') return showAgentSetup(d.id);
   if (act === 'key') return editDevice(d);  // the password goes in the device's settings
   if (act === 'update') return openTerminal(d, 'update');
   if (act === 'reboot' || act === 'poweroff') {
     const reboot = act === 'reboot';
     const go = await dialog({
-      title: `${reboot ? 'Repornești' : 'Oprești'} ${name}?`, icon: 'power', danger: !reboot, ok: reboot ? 'Repornește' : 'Oprește',
-      text: reboot ? 'Revine în rețea în 1–2 minute.' : 'Ca să-l pornești din nou trebuie apăsat butonul de pe el (sau scos și băgat în priză).',
+      title: `${reboot ? 'Restart' : 'Shut down'} ${name}?`, icon: 'power', danger: !reboot, ok: reboot ? 'Restart' : 'Shut down',
+      text: reboot ? 'It\'s back on the network in 1–2 minutes.' : 'To turn it back on, someone has to press its power button (or unplug it and plug it back in).',
     });
     if (go) openTerminal(d, act);
     return;
@@ -1449,24 +1533,29 @@ async function doAction(act, d) {
   if (act === 'speed') return speedTest(d);
   if (act === 'send') { sendTarget = d; $('send-file').value = ''; return $('send-file').click(); }
   if (act === 'connect' || act === 'wake') {
-    if (act === 'connect') toast('Se deschide RustDesk… poate dura câteva secunde', 'info');
+    if (act === 'connect') toast('Opening Remote Desktop… this can take a few seconds', 'info');
     try {
       const j = await (await fetch(`/api/${act}/${encodeURIComponent(d.id)}`, { method: 'POST' })).json();
-      if (act === 'wake') toast('Semnal de pornire trimis. Poate dura un minut.', 'info');
-      else if (!j.ok) toast('Nu s-a putut deschide RustDesk', 'err');
-    } catch { toast('Eroare: serverul nu răspunde', 'err'); }
+      if (act === 'wake') toast('Wake-up signal sent. It can take a minute.', 'info');
+      else if (!j.ok) toast(j.error || 'Couldn\'t open Remote Desktop', 'err');
+    } catch { toast('Error: the server isn\'t responding', 'err'); }
   }
 }
 
+// Last speed test per device, shown in its big screen (not on the card: it's not live).
+const speeds = {};
+
 async function speedTest(d) {
-  toast(`Se măsoară viteza către ${d.name}… (~8 secunde)`, 'info');
+  if (speeds[d.id]?.running) return;
+  speeds[d.id] = { running: true };
+  if (detailId !== d.id) toast(`Measuring the speed to ${d.name}… (~8 seconds)`, 'info');
+  renderDetail();
   let j;
   try { j = await (await fetch(`/api/speed/${encodeURIComponent(d.id)}`, { method: 'POST' })).json(); } catch {}
-  if (!j?.ok) return toast(`Nu s-a putut măsura viteza către ${d.name}`, 'err');
-  const fmt = v => v == null ? '–' : v >= 100 ? Math.round(v) : v.toFixed(1);
-  speeds[d.id] = { down: fmt(j.down), up: fmt(j.up) };
-  toast(`${d.name}: ↓ ${fmt(j.down)} Mbit/s · ↑ ${fmt(j.up)} Mbit/s`, 'ok');
-  poll();
+  const fmt = v => v == null ? '–' : v >= 100 ? String(Math.round(v)) : v.toFixed(1).replace('.', ',');
+  speeds[d.id] = j?.ok ? { down: fmt(j.down), up: fmt(j.up), t: Date.now() } : { failed: true, t: Date.now() };
+  if (detailId !== d.id) toast(j?.ok ? `${d.name}: ↓ ${fmt(j.down)} · ↑ ${fmt(j.up)} Mbit/s` : `Couldn't measure the speed to ${d.name}`, j?.ok ? 'ok' : 'err');
+  renderDetail();
 }
 
 // --- Sending files: "send <device>" in the palette, or drop files on a card ---
@@ -1491,24 +1580,29 @@ function uploadOne(d, file, label) {
     x.upload.onprogress = e => {
       if (!e.lengthComputable) return;
       const pct = Math.round(100 * e.loaded / e.total);
-      toastProgress(pct < 100 ? `${label}: ${pct}%` : `${label}: se copiază pe ${d.name}…`);
+      toastProgress(pct < 100 ? `${label}: ${pct}%` : `${label}: copying to ${d.name}…`);
     };
-    x.onload = () => { try { resolve(JSON.parse(x.responseText).ok); } catch { resolve(false); } };
-    x.onerror = () => resolve(false);
+    // Resolves to the server's answer: {ok, via: "ssh" | "shared", folder}.
+    x.onload = () => { try { resolve(JSON.parse(x.responseText)); } catch { resolve({}); } };
+    x.onerror = () => resolve({});
     x.send(file);
   });
 }
 
 async function sendFiles(d, files) {
-  if (!d.key) return toast(`Pune întâi parola SSH în setările lui ${d.name} (✎)`, 'err');
-  let ok = 0;
+  if (!d.key && !d.windows) return toast(`First type the SSH password in ${d.name}'s settings (✎)`, 'err');
+  let ok = 0, res = {};
   for (const [i, f] of files.entries()) {
     const label = files.length > 1 ? `${f.name} (${i + 1}/${files.length})` : f.name;
     toastProgress(`${label}: 0%`);
-    if (await uploadOne(d, f, label)) ok++;
+    const r = await uploadOne(d, f, label);
+    if (r.ok) { ok++; res = r; }
   }
-  if (ok === files.length) toast(ok > 1 ? `${ok} fișiere trimise pe ${d.name} (în folderul personal)` : `${files[0].name} e pe ${d.name}, în folderul personal`, 'ok');
-  else toast(`Trimise ${ok} din ${files.length}. Verifică dacă ${d.name} e pornit.`, 'err');
+  const what = ok > 1 ? `${ok} files` : files[0].name;
+  if (ok < files.length) toast(`Sent ${ok} of ${files.length}. Check that ${d.name} is on.`, 'err');
+  // Without SSH they wait in the laptop folder that Remote Desktop shows on the PC.
+  else if (res.via === 'shared') toast(`${what}: on the PC, in Remote Desktop › This PC › the shared folder (${res.folder.split('/').pop()})`, 'ok');
+  else toast(`${what}${ok > 1 ? ' are' : ' is'} on ${d.name}, in ${d.windows ? 'Downloads' : `${d.ssh_user || 'the user'}'s home folder`}`, 'ok');
 }
 
 // The browser would otherwise open a file dropped anywhere on the page.
@@ -1541,10 +1635,10 @@ const norm = t => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 let palItems = [], palSel = 0;
 
 function paletteCommands() {
-  const out = [{ text: 'scan', desc: 'Caută dispozitive noi', run: () => fetch('/api/scan', { method: 'POST' }).then(() => toast('Caut în rețea…', 'info')) }];
+  const out = [{ text: 'scan', desc: 'Look for new devices', run: () => fetch('/api/scan', { method: 'POST' }).then(() => toast('Searching the network…', 'info')) }];
   for (const d of last?.devices || []) {
     for (const [act, label, cmd] of deviceActions(d)) out.push({ text: `${cmd} ${d.name}`, desc: label.replace('…', ''), run: () => doAction(act, d) });
-    out.push({ text: `edit ${d.name}`, desc: 'Setări', run: () => doAction('edit', d) });
+    out.push({ text: `edit ${d.name}`, desc: 'Settings', run: () => doAction('edit', d) });
   }
   return out;
 }
@@ -1553,13 +1647,24 @@ function renderPalette() {
   const q = norm($('pal-input').value.trim());
   const words = q.split(/\s+/).filter(Boolean);
   const all = paletteCommands();
-  palItems = all.filter(c => words.every(w => norm(c.text).includes(w)))
-                .sort((a, b) => norm(b.text).startsWith(q) - norm(a.text).startsWith(q))
-                .slice(0, 9);
+  if (!q) {
+    // Nothing typed yet: each command once, without device names. Picking one types it in
+    // and then lists the devices it works on; a command without a device (scan) just runs.
+    const verbs = new Map();
+    for (const c of all) {
+      const verb = c.text.split(' ')[0];
+      if (!verbs.has(verb)) verbs.set(verb, c.text === verb ? c : { text: verb, desc: c.desc, fill: verb + ' ' });
+    }
+    palItems = [...verbs.values()];
+  } else {
+    palItems = all.filter(c => words.every(w => norm(c.text).includes(w)))
+                  .sort((a, b) => norm(b.text).startsWith(q) - norm(a.text).startsWith(q))
+                  .slice(0, 12);
+  }
   palSel = Math.min(palSel, Math.max(0, palItems.length - 1));
   $('pal-list').innerHTML = palItems.length
     ? palItems.map((c, i) => `<div class="pal-item ${i === palSel ? 'sel' : ''}" role="option" aria-selected="${i === palSel}" data-i="${i}"><b>${esc(c.text)}</b><span>${esc(c.desc)}</span></div>`).join('')
-    : '<div class="pal-empty">Nicio comandă. Încearcă: ssh, wake, send, speed, scan</div>';
+    : '<div class="pal-empty">No command. Try: ssh, wake, send, speed, scan</div>';
 }
 
 function openPalette() {
@@ -1574,15 +1679,22 @@ function closePalette() { $('pal').hidden = true; }
 function runPalette(i) {
   const c = palItems[i];
   if (!c) return;
+  if (c.fill) return fillPalette(c.fill);
   closePalette();
   c.run();
+}
+function fillPalette(text) {
+  $('pal-input').value = text;
+  palSel = 0;
+  renderPalette();
+  $('pal-input').focus();
 }
 
 $('pal-input').addEventListener('input', () => { palSel = 0; renderPalette(); });
 $('pal-input').addEventListener('keydown', e => {
   if (e.key === 'ArrowDown') { e.preventDefault(); palSel = (palSel + 1) % Math.max(1, palItems.length); renderPalette(); }
   else if (e.key === 'ArrowUp') { e.preventDefault(); palSel = (palSel - 1 + palItems.length) % Math.max(1, palItems.length); renderPalette(); }
-  else if (e.key === 'Tab') { e.preventDefault(); if (palItems[palSel]) { $('pal-input').value = palItems[palSel].text; renderPalette(); } }
+  else if (e.key === 'Tab') { e.preventDefault(); const c = palItems[palSel]; if (c) fillPalette(c.fill || c.text); }
   else if (e.key === 'Enter') { e.preventDefault(); runPalette(palSel); }
   else if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
 });
@@ -1597,6 +1709,213 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     openPalette();
   }
+});
+
+// --- A device's big screen (click a card) -----------------------------------
+// Left: live numbers and charts, redrawn every poll (nothing to click there).
+// Right: commands, redrawn only when they change, so focus and hover stay put.
+
+let detailId = null;
+
+function openDetail(id) {
+  if (!last?.devices.some(d => d.id === id)) return;
+  detailId = id;
+  $('dev-modal').hidden = false;
+  // Forget what was drawn for the previous device; '' would match a device with nothing to show there.
+  for (const el of ['dv-icon', 'dv-who', 'dv-main', 'dv-side']) { delete $(el).dataset.html; $(el).innerHTML = ''; }
+  renderDetail();
+  $('dv-close').focus();
+}
+function closeDetail() {
+  detailId = null;
+  $('dev-modal').hidden = true;
+}
+
+const ago = t => {
+  const m = Math.round((Date.now() - t) / 60000);
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+};
+const evTime = t => {
+  const d = new Date(t * 1000), today = new Date().toDateString() === d.toDateString();
+  return today ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+};
+
+// A small filled line for a tile: [values], colour, top of the scale.
+function miniSpark(data, col, top) {
+  const v = (data || []).filter(x => x != null);
+  if (v.length < 2) return '<svg aria-hidden="true"></svg>';
+  const w = 200, h = 26, step = w / (v.length - 1);
+  const d = v.map((x, i) => (i ? 'L' : 'M') + (i * step).toFixed(1) + ' ' + (h - 2 - Math.min(x, top) / top * (h - 4)).toFixed(1)).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><path d="${d} L${w} ${h} L0 ${h}Z" fill="${col}" opacity=".12"/>` +
+         `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+// Response time with a readable scale: sized to the usual values, rare spikes clipped and marked.
+function bigLatChart(svg, data) {
+  const w = svg.clientWidth || 600, h = svg.clientHeight || 150, N = 90;
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  const vals = data.filter(v => v != null).sort((a, b) => a - b);
+  const p90 = vals.length ? vals[Math.floor(vals.length * .9)] : 1;
+  const top = [25, 50, 100, 200, 500, 1000, 2000, 5000].find(x => x >= p90 * 1.4) || 5000;
+  const step = w / (N - 1), off = w - (data.length - 1) * step, pad = 3;
+  const y = v => h - pad - Math.min(v, top) / top * (h - 2 * pad);
+  let out = '';
+  for (const f of [0, .5, 1]) {
+    const gy = pad + (1 - f) * (h - 2 * pad);
+    // Labels on the left: the newest data is on the right, where they'd cover it.
+    out += `<line x1="0" x2="${w}" y1="${gy}" y2="${gy}" stroke="#1b2430"/><text x="2" y="${gy - 4}" fill="var(--dim)" font-size="10">${Math.round(top * f)} ms</text>`;
+  }
+  const first = data.findIndex(v => v != null);
+  const startX = first < 0 ? w : off + first * step;
+  if (startX > 4) out += `<line x1="0" x2="${startX.toFixed(1)}" y1="${h - pad}" y2="${h - pad}" stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="2 5"/>`;
+  let path = '', pen = false;
+  data.forEach((v, i) => {
+    if (v == null) { pen = false; return; }
+    path += (pen ? 'L' : 'M') + (off + i * step).toFixed(1) + ' ' + y(v).toFixed(1);
+    pen = true;
+    if (v > top) out += `<text x="${(off + i * step).toFixed(1)}" y="10" text-anchor="middle" fill="var(--amber)" font-size="10">↑${Math.round(v)}</text>`;
+  });
+  if (path) out += `<path d="${path}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round"/>`;
+  svg.innerHTML = out;
+}
+
+function detailMain(d, st, s) {
+  const online = st?.online, checked = st != null && st.online != null;
+  // Stats come over SSH from Linux devices, or from the agent on Windows PCs.
+  const ssh = online ? (s.sshstats?.[d.id] || s.stats?.[d.id]) : null, h = s.history || {};
+  const lat = (h['lat:' + d.id] || []).filter(v => v != null);
+  const tile = (label, value, unit, spark = '') =>
+    `<div class="dv-tile"><span>${label}</span><b>${value}${value === '–' ? '' : `<small>${unit}</small>`}</b>${spark}</div>`;
+  const tiles = [];
+  if (d.probe_port) {
+    // Scale to the usual values, like the big chart, so one slow reply doesn't flatten the line.
+    const recent = lat.slice(-30), sorted = [...recent].sort((a, b) => a - b);
+    const top = Math.max(25, (sorted[Math.floor(sorted.length * .9)] || 0) * 1.4);
+    tiles.push(tile('Response', online && st.latency != null ? Math.round(st.latency) : '–', 'ms', miniSpark(recent, 'var(--blue)', top)));
+  }
+  if (ssh) {
+    tiles.push(tile('CPU', ssh.cpu == null ? '…' : Math.round(ssh.cpu), '%', miniSpark(h['cpu:' + d.id], color(ssh.cpu ?? 0), 100)));
+    if (ssh.temp != null) tiles.push(tile('Temp', Math.round(ssh.temp), '°', miniSpark((h['temp:' + d.id] || []).map(v => v - 25), color(ssh.temp, 65, 80), 60)));
+    if (ssh.gpu != null) tiles.push(tile('GPU', Math.round(ssh.gpu), '%', miniSpark(h['gpu:' + d.id], color(ssh.gpu), 100)));
+    const ram = 100 * (1 - ssh.mem_free / ssh.mem_total);
+    tiles.push(tile('RAM', Math.round(ram), '%', miniSpark(h['ram:' + d.id], color(ram, 75, 90), 100)));
+  }
+  const latInfo = lat.length ? `min ${Math.round(Math.min(...lat))} · avg ${Math.round(lat.reduce((a, b) => a + b, 0) / lat.length)} · last 3 min` : 'last 3 min';
+  const latSec = d.probe_port ? `<div class="dv-sec"><h4>Response time <span>${latInfo}</span></h4>
+      <div class="dv-chart"><svg id="dv-lat" preserveAspectRatio="none" aria-label="Response time, last 3 minutes"></svg></div></div>` : '';
+  let sys = '';
+  if (ssh) {
+    const diskUsed = ssh.disk_total - ssh.disk_free, memUsed = ssh.mem_total - ssh.mem_free;
+    const kv = (label, val, pct, warn, crit) => `<div class="dv-kv"><span>${label}</span><b>${val}</b>${pct == null ? '' :
+      `<div class="bar"><i style="width:${Math.min(100, pct)}%;background:${color(pct, warn, crit)}"></i></div>`}</div>`;
+    const agent = !s.sshstats?.[d.id];
+    sys = `<div class="dv-sec"><h4>System <span>${agent ? 'sent by the PC every 5 s' : 'read over SSH every 30 s'}</span></h4><div class="dv-sys">
+      ${ssh.disk_total ? kv(d.windows ? 'Disk C:' : 'Disk', `${bytes(ssh.disk_free)} free of ${bytes(ssh.disk_total)}`, 100 * diskUsed / ssh.disk_total, 85, 95) : ''}
+      ${kv('Memory', `${bytes(memUsed)} of ${bytes(ssh.mem_total)}`, 100 * memUsed / ssh.mem_total, 75, 90)}
+      ${ssh.boot ? kv('System up for', dur(s.now - ssh.boot)) : ''}
+      ${ssh.kernel ? kv('Kernel', esc(ssh.kernel)) : ''}
+      ${agent && ssh.os ? kv('System', esc(ssh.os.replace(/^Microsoft /, ''))) : ''}
+      ${agent && ssh.top_name ? kv('Busiest app', `${esc(ssh.top_name)} · ${Math.round(ssh.top_cpu || 0)}%`) : ''}
+      ${agent && ssh.net_down != null ? kv('Network', `↓ ${bytes(ssh.net_down, true)} · ↑ ${bytes(ssh.net_up, true)}`) : ''}
+    </div></div>`;
+  }
+  const strip = t => t.startsWith(d.name + ': ') ? t.slice(d.name.length + 2) : t.startsWith(d.name + ' ') ? t.slice(d.name.length + 1) : t;
+  const log = d.recent?.length ? `<div class="dv-sec"><h4>What happened <span>this device only</span></h4><div class="dv-log">
+      ${d.recent.map(e => `<div class="${esc(e.kind)}"><time>${evTime(e.t)}</time><i></i><span>${esc(strip(e.text))}</span></div>`).join('')}
+    </div></div>` : '';
+  const state = !checked ? '<p class="dv-note">Checking…</p>' : !online ? '<p class="dv-note">The device is off or not on the network.</p>' : '';
+  return `<div class="dv-tiles">${tiles.join('')}</div>${state}${latSec}${sys}${log}`;
+}
+
+function detailSide(d, st, s = last) {
+  const online = st?.online;
+  if (d.dlna) {
+    // A TV: its playback and volume controls (same as on its card), wrapped so the handlers find the device.
+    const tv = s?.tv?.[d.id];
+    return `<div class="dv-sec"><h4>Playback</h4>${tv && online ? `<div data-id="${esc(d.id)}">${tvBlock(d, tv)}</div>`
+      : `<p class="dv-note">${online ? 'The TV isn\'t answering commands yet (DLNA).' : 'The TV is off.'}</p>`}</div>`;
+  }
+  const short = d.name;
+  // Waking only makes sense when it's off (same as on the card).
+  const acts = deviceActions(d).filter(([a]) => !['send', 'speed'].includes(a) && !(a === 'wake' && online));
+  const cmds = acts.length ? `<div class="dv-sec"><h4>Commands</h4><div class="dv-cmds">
+      ${acts.map(([a, label, cmd]) => `<button class="dv-cmd ${a === 'poweroff' ? 'danger-item' : ''}" data-dv="${a}" ${online || ['wake', 'key'].includes(a) ? '' : 'disabled'}>
+        <span class="p">$</span><code>${cmd} <em>${esc(short)}</em></code><span>${label.replace('…', '').toLowerCase()}</span></button>`).join('')}
+    </div></div>` : '';
+  const files = d.key || d.windows ? `<div class="dv-sec"><h4>Files</h4>
+      <div class="dv-drop" data-dv="send" role="button" tabindex="0">
+        <b>Drop files here</b>
+        <small>${d.key ? `or click · they land in ${d.windows ? 'Downloads' : `${esc(d.ssh_user || '')}'s home folder`}`
+                       : 'or click · find them on the PC in Remote Desktop › This PC › the folder shared by the laptop'}</small>
+      </div></div>` : '';
+  const sp = speeds[d.id];
+  const speed = d.key ? `<div class="dv-sec"><h4>Speed to it <span>${sp?.t && !sp.running ? ago(sp.t) : ''}</span></h4><div class="dv-speed">
+      ${sp?.running ? '<p class="dv-note"><span class="spin" style="width:12px;height:12px;display:inline-block;vertical-align:-2px"></span> Measuring… ~8 s</p>'
+        : sp?.failed ? '<p class="dv-note">Couldn\'t measure it.</p>'
+        : sp ? `<div class="nums"><div><b>${sp.down}</b><span>↓ download Mbit/s</span></div><div><b>${sp.up}</b><span>↑ upload Mbit/s</span></div></div>`
+        : '<p class="dv-note">How fast data moves between this laptop and it, over Wi-Fi.</p>'}
+      <button data-dv="speed" ${online && !sp?.running ? '' : 'disabled'}>${sp && !sp.running ? 'Measure again' : 'Measure'}</button>
+    </div></div>` : '';
+  const hint = d.ssh && !d.key ? '<p class="dv-note">Type the SSH password in ✎ to get stats, files and a speed test here.</p>'
+    : !d.ssh && d.kind !== 'tv' && !d.windows ? '<p class="dv-note">Set an SSH user and password in ✎ to control it from here.</p>' : '';
+  return cmds + files + speed + hint;
+}
+
+function renderDetail(s = last) {
+  if (!detailId || !s) return;
+  const d = s.devices.find(x => x.id === detailId);
+  if (!d) return closeDetail();
+  const st = s.status[d.id], online = st?.online, checked = st != null && st.online != null;
+  const ssh = online ? (s.sshstats?.[d.id] || s.stats?.[d.id]) : null;
+  const put = (id, html, guard = false) => {
+    const el = $(id);
+    if (el.dataset.html !== html && !guard) { el.innerHTML = html; el.dataset.html = html; }
+  };
+  put('dv-icon', ICONS[d.kind] || ICONS.other);
+  const sub = [d.os ? `<span class="os-tag">${esc(d.os.replace(' (DLNA)', ''))}</span>` : '', ssh?.model ? esc(ssh.model.replace(/ Rev [\d.]+$/, '')) : '',
+               esc(d.host), d.ssh_user && d.kind !== 'tv' ? `${esc(d.ssh_user)}@` : ''].filter(Boolean).join(' · ');
+  put('dv-who', `<h3><span id="dv-name">${esc(d.name)}</span><span class="pill ${!checked ? '' : online ? 'on' : 'off'}"><span class="dot"></span>${
+      !checked ? 'Checking…' : online ? `On${st.since ? ` <small>· for ${dur(s.now - st.since)}</small>` : ''}` : 'Off'}</span></h3><p>${sub}</p>`);
+  put('dv-main', detailMain(d, st, s));
+  put('dv-side', detailSide(d, st, s), $('dv-side').querySelector('.busy, .drop') || pointerHeld);
+  if ($('dv-lat')) bigLatChart($('dv-lat'), (s.history || {})['lat:' + d.id] || []);
+}
+
+// Same icons as on the cards.
+$('dv-edit').innerHTML = ICONS.edit;
+$('dv-close').innerHTML = ICONS.x;
+$('dv-close').addEventListener('click', closeDetail);
+$('dv-edit').addEventListener('click', () => editDevice(last.devices.find(d => d.id === detailId)));
+$('dev-modal').addEventListener('click', e => { if (e.target === $('dev-modal')) closeDetail(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && detailId && $('term-modal').hidden && !document.querySelector('.dlg-back') && $('pal').hidden) closeDetail();
+});
+addEventListener('resize', () => { if (detailId && $('dv-lat')) bigLatChart($('dv-lat'), (last.history || {})['lat:' + detailId] || []); });
+$('dv-side').addEventListener('pointerdown', () => { pointerHeld = true; });
+$('dv-side').addEventListener('click', e => {
+  const el = e.target.closest('[data-dv]');
+  if (!el || el.disabled) return;
+  doAction(el.dataset.dv, last.devices.find(x => x.id === detailId));  // the terminal and dialogs open on top
+});
+$('dv-side').addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('dv-drop')) { e.preventDefault(); e.target.click(); }
+});
+$('dv-side').addEventListener('dragover', e => {
+  const zone = e.target.closest('.dv-drop');
+  if (!zone || !e.dataTransfer.types.includes('Files')) return;
+  e.preventDefault();
+  zone.classList.add('drop');
+});
+$('dv-side').addEventListener('dragleave', e => {
+  const zone = e.target.closest('.dv-drop');
+  if (zone && !zone.contains(e.relatedTarget)) zone.classList.remove('drop');
+});
+$('dv-side').addEventListener('drop', e => {
+  const zone = e.target.closest('.dv-drop');
+  if (!zone) return;
+  e.preventDefault();
+  zone.classList.remove('drop');
+  if (e.dataTransfer.files.length) sendFiles(last.devices.find(x => x.id === detailId), [...e.dataTransfer.files]);
 });
 </script>
 </body>

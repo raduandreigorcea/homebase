@@ -228,7 +228,7 @@ def identify(ip, mac, upnp_location=None):
     is_windows = ports[135] == "open" or ports[445] == "open"
     what = None
     if is_windows:
-        what = "Calculator cu Windows"
+        what = "Windows computer"
         if kind not in ("laptop", "desktop"):
             kind = "desktop"
     elif ports[62078] == "open":
@@ -238,18 +238,18 @@ def identify(ip, mac, upnp_location=None):
     elif ports[8008] == "open":
         what, kind = "Chromecast / Google TV", "tv"
     elif ports[9100] == "open" or ports[631] == "open":
-        what, kind = "Imprimantă", "other"
+        what, kind = "Printer", "other"
     elif ports[22] == "open" and kind == "other":
-        what = "Dispozitiv Linux (SSH)"
+        what = "Linux device (SSH)"
 
     name = None
     upnp = upnp_describe(upnp_location, ip) if upnp_location else {}
     if upnp:
         dtype = upnp.get("deviceType", "")
         if "MediaRenderer" in dtype:
-            kind, what = "tv", "Televizor (DLNA)"
+            kind, what = "tv", "TV (DLNA)"
         elif "Printer" in dtype:
-            what = what or "Imprimantă"
+            what = what or "Printer"
         elif "InternetGatewayDevice" in dtype:
             kind, what = "router", "Router"
         fn = upnp.get("friendlyName")
@@ -269,9 +269,9 @@ def identify(ip, mac, upnp_location=None):
     elif what is None and kind == "tv":
         what = "Smart TV"
     os_names = {
-        "Calculator cu Windows": "Windows", "iPhone / iPad": "iOS", "Mac": "macOS",
-        "Chromecast / Google TV": "Google TV", "Dispozitiv Linux (SSH)": "Linux",
-        "Televizor (DLNA)": "Smart TV", "Router": "Router", "Imprimantă": "Imprimantă",
+        "Windows computer": "Windows", "iPhone / iPad": "iOS", "Mac": "macOS",
+        "Chromecast / Google TV": "Google TV", "Linux device (SSH)": "Linux",
+        "TV (DLNA)": "Smart TV", "Router": "Router", "Printer": "Printer",
     }
     label = os_names.get(what, what)
     return {"label": label, "name": name, "kind": kind, "maker": full_maker}
