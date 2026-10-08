@@ -95,6 +95,9 @@
   .facts div { min-width: 0; }
   .facts span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 2px; }
   .facts b { font-size: 15px; font-weight: 600; white-space: nowrap; }
+  /* Terminal-style loading bar while a device is still being checked. */
+  .tbar { color: var(--green); font-weight: 400; letter-spacing: 0; }
+  .tbar i { font-style: normal; color: var(--dim); }
 
   .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
   .device .actions button { padding: 9px 14px; font-size: 13px; }
@@ -241,6 +244,14 @@
   .term-actions button { padding: 6px 12px; font-size: 13px; }
   .term-body { flex: 1; min-height: 0; padding: 10px 6px 6px 12px; }
   .term-body .xterm { height: 100%; }
+  /* Falling characters behind the terminal text; the terminal itself is transparent. */
+  .term-win { position: relative; }
+  .term-bar, .term-body { position: relative; z-index: 1; }
+  .term-rain { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .18; pointer-events: none; }
+  /* xterm's viewport sits behind the text, is a few px taller than the last full row, and is
+     #000 with a native scrollbar: that leftover strip showed as a black bar at the bottom. */
+  .term-body .xterm .xterm-viewport { background-color: transparent; scrollbar-width: none; }
+  .term-body .xterm .xterm-viewport::-webkit-scrollbar { display: none; }
   .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
   .meter-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
   .meter-head b { color: var(--text); font-weight: 600; font-size: 14px; }
@@ -324,6 +335,7 @@
 
 <div class="term-modal" id="term-modal" hidden>
   <div class="term-win">
+    <canvas class="term-rain" id="term-rain" aria-hidden="true"></canvas>
     <div class="term-bar">
       <span class="term-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-5-6-5M12 19h8"/></svg><b id="term-name"></b><span class="muted-sm" id="term-host"></span><span class="term-status" id="term-status"></span></span>
       <span class="term-actions" id="term-actions"></span>
@@ -415,6 +427,24 @@ function spark(el, series, max) {
   el.innerHTML = out;
 }
 
+// A block bouncing along a track, like a terminal progress bar: ▱▱▰▰▰▱▱▱▱
+// The card renders frame 0; one timer animates every bar on the page, so the
+// 2 s refresh (which compares HTML) never sees them change.
+const TBAR_W = 9, TBAR_SEG = 3;
+function tbarFrame(i) {
+  const span = TBAR_W - TBAR_SEG, pos = Math.abs((i % (2 * span)) - span);
+  return `<i>${'▱'.repeat(span - pos)}</i>${'▰'.repeat(TBAR_SEG)}<i>${'▱'.repeat(pos)}</i>`;
+}
+let tbarTick = 0;
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  setInterval(() => {
+    const bars = document.querySelectorAll('.tbar');
+    if (!bars.length) return;
+    const html = tbarFrame(++tbarTick);
+    bars.forEach(b => { b.innerHTML = html; });
+  }, 110);
+}
+
 function deviceCard(d, st, hist, now, stats, tv) {
   const online = st?.online;
   const checked = st != null && st.online != null;
@@ -464,7 +494,11 @@ function deviceCard(d, st, hist, now, stats, tv) {
       ${st.latency != null ? `<div><span>Răspuns</span><b>${Math.round(st.latency)} ms</b></div>` : ''}
       <div><span>Pornit de</span><b>${since}</b></div>
       ${third}
-    </div>` : ''}
+    </div>` : !checked ? `<div class="facts">
+      <div><span>Răspuns</span><b class="tbar">${tbarFrame(0)}</b></div>
+      <div><span>Pornit de</span><b class="tbar">${tbarFrame(0)}</b></div>
+      ${third}
+    </div>${d.probe_port && !d.dlna ? '<svg class="spark"></svg>' : ''}` : ''}
     ${tvActive ? tvBlock(d, tv) : stats ? statsBlock(d, stats) : latLine ? `<svg class="spark" id="lat-${esc(d.id)}" preserveAspectRatio="none" aria-label="Timp de răspuns, ultimele 3 minute"></svg>` : ''}
     ${connectBtn || wakeBtn || statsBtn ? `<div class="actions">${connectBtn}${wakeBtn}${statsBtn}</div>` : ''}
   </section>`;
@@ -614,7 +648,10 @@ async function busy(btn, fn, minMs = 0) {
   }
 }
 
-let tvDragging = false;  // true while the TV volume slider is held: skip redraws
+// True while a mouse button or finger is down on a card (a button, the TV volume slider...).
+// Redrawing then would swap the pressed element for a new one between press and release,
+// and the browser drops the click: buttons sometimes seemed to ignore clicks.
+let pointerHeld = false;
 
 // Fixed steps for the chart's ceiling, so the scale only jumps when it must (never per sample).
 const NET_STEPS = [20, 50, 100, 200, 500, 1000, 2000];
@@ -731,7 +768,7 @@ function render(s) {
   const empty = `<section class="card welcome"><h3>Bun venit în Homebase</h3>
     <p>Aici apar dispozitivele tale. Alege-le din lista <b>Găsite în rețea</b> de mai jos și apasă <b>Adaugă</b>.</p></section>`;
   const out = html || empty;
-  if (box.dataset.html !== out && !tvDragging && !box.querySelector('.busy')) { box.innerHTML = out; box.dataset.html = out; }
+  if (box.dataset.html !== out && !pointerHeld && !box.querySelector('.busy')) { box.innerHTML = out; box.dataset.html = out; }
 
   // Discovered devices: don't redraw while the user is typing a name.
   const disc = $('discovered');
@@ -854,14 +891,15 @@ async function openTerminal(dev) {
   termStatus('Se conectează…', true);
   $('term-body').innerHTML = '<div class="term-loading"><span class="spin"></span>Se pregătește terminalul…</div>';
   $('term-modal').hidden = false;
+  startRain();
   try { await loadTerminalLib(); }
   catch { closeTerminal(); toast('Nu s-a putut încărca terminalul', 'err'); return; }
   $('term-body').innerHTML = '';
 
   term = new Terminal({
     fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--mono'),
-    fontSize: 14, cursorBlink: true, scrollback: 3000,
-    theme: { background: '#0b0f14', foreground: '#e6edf3', cursor: '#34d399', cursorAccent: '#0b0f14',
+    fontSize: 14, cursorBlink: true, scrollback: 3000, allowTransparency: true,
+    theme: { background: 'rgba(0, 0, 0, 0)', foreground: '#e6edf3', cursor: '#34d399', cursorAccent: '#0b0f14',
              selectionBackground: '#264f78', black: '#1b2430', brightBlack: '#5b6876',
              green: '#34d399', brightGreen: '#6ee7b7', red: '#f87171', yellow: '#fbbf24', blue: '#60a5fa', magenta: '#a78bfa' },
   });
@@ -929,6 +967,51 @@ function closeTerminal() {
   termStatus('');
   termPending = '';
   $('term-modal').hidden = true;
+  stopRain();
+}
+
+// Matrix-style rain behind the terminal. This laptop draws everything in software,
+// so it stays cheap: ~12 fps, one fading wipe per frame, about a third of the columns active.
+const RAIN_CHARS = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789';
+const RAIN_SIZE = 14;
+let rain = null;
+
+function startRain() {
+  if (rain || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cv = $('term-rain'), ctx = cv.getContext('2d');
+  const font = `${RAIN_SIZE}px ${getComputedStyle(document.documentElement).getPropertyValue('--mono')}`;
+  let drops = [];  // per column: row of the falling head, or null while the column rests
+  const step = () => {
+    // Fade what's there instead of clearing, which leaves the trails.
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0, 0, 0, .16)';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#34d399';
+    drops.forEach((row, i) => {
+      if (row == null) { if (Math.random() < .006) drops[i] = 0; return; }
+      ctx.fillText(RAIN_CHARS[Math.random() * RAIN_CHARS.length | 0], i * RAIN_SIZE, row * RAIN_SIZE);
+      drops[i] = row * RAIN_SIZE > cv.height ? null : row + 1;
+    });
+  };
+  const resize = () => {
+    // 1:1 pixels even on HiDPI: it's a faint background, and fewer pixels is cheaper.
+    cv.width = cv.clientWidth; cv.height = cv.clientHeight;
+    ctx.font = font; ctx.textBaseline = 'top';
+    drops = Array.from({ length: Math.ceil(cv.width / RAIN_SIZE) },
+      () => Math.random() < .35 ? Math.random() * cv.height / RAIN_SIZE | 0 : null);
+    for (let i = 0; i < 25; i++) step();  // open already flowing, not on an empty screen
+  };
+  const ro = new ResizeObserver(resize);
+  ro.observe(cv);
+  rain = { ro, timer: setInterval(() => { if (!document.hidden) step(); }, 80) };
+}
+
+function stopRain() {
+  if (!rain) return;
+  clearInterval(rain.timer);
+  rain.ro.disconnect();
+  rain = null;
 }
 
 $('term-close').addEventListener('click', closeTerminal);
@@ -1112,9 +1195,11 @@ $('devices').addEventListener('click', e => {
   busy(b, () => tvSend(id, op, value), 300);
 }, true);
 
+$('devices').addEventListener('pointerdown', () => { pointerHeld = true; });
+// Only clear the flag here; the next poll redraws. Redrawing right now would land before the click fires.
+addEventListener('pointerup', () => { pointerHeld = false; });
+addEventListener('pointercancel', () => { pointerHeld = false; });
 // Volume: show the number live while dragging, send when released.
-$('devices').addEventListener('pointerdown', e => { if (e.target.classList?.contains('tv-range')) tvDragging = true; });
-addEventListener('pointerup', () => { tvDragging = false; });
 $('devices').addEventListener('input', e => {
   if (!e.target.classList?.contains('tv-range')) return;
   e.target.style.setProperty('--p', e.target.value + '%');
@@ -1122,7 +1207,7 @@ $('devices').addEventListener('input', e => {
 });
 $('devices').addEventListener('change', e => {
   if (!e.target.classList?.contains('tv-range')) return;
-  tvDragging = false;
+  pointerHeld = false;
   tvSend(e.target.closest('[data-id]').dataset.id, 'volume', Number(e.target.value));
 });
 
