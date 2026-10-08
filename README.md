@@ -30,6 +30,25 @@ That slow laptop in the drawer still has a screen, a keyboard and a battery. Hom
 
 Home networks quietly fill up with things: a PC, a Raspberry Pi, a TV, a laptop that isn't yours. Keeping an eye on them usually means a router page nobody understands, three different apps, and typing IP addresses from memory. Homebase puts all of it on one screen, on hardware you already own.
 
+## Install
+
+Homebase runs on Linux. The background service is plain Python 3 (standard library only); the window is a small [Tauri](https://tauri.app) app.
+
+```sh
+# 1. The background service, started with your session
+cp linux/homebase.service ~/.config/systemd/user/   # adjust the path inside if the project isn't in ~/Projects/homebase-app
+systemctl --user enable --now homebase.service
+
+# 2. The app window (needs Rust and Node.js)
+npm install
+npm run build
+cp src-tauri/target/release/homebase ~/.local/bin/
+cp linux/homebase.desktop ~/.local/share/applications/
+install -Dm644 src-tauri/icons/128x128.png ~/.local/share/icons/hicolor/128x128/apps/homebase.png
+```
+
+The panel also works in any browser at <http://127.0.0.1:8800>. Optional extras: `ptyxis` for opening SSH in a separate window, the RustDesk Flatpak for remote desktop, and `iw` for Wi-Fi signal strength.
+
 ## License
 
 Homebase is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE.md): you're welcome to read the code, learn from it, and use it for personal, hobby, or educational purposes, but any commercial use is not permitted.

@@ -62,10 +62,7 @@ def load_devices():
 
 
 def save_devices(devices):
-    tmp = DATA / "devices.json.tmp"
-    with open(tmp, "w") as f:
-        json.dump(devices, f, indent=2, ensure_ascii=False)
-    tmp.replace(DATA / "devices.json")
+    save_json(DATA / "devices.json", devices)
 
 
 def default_iface():
@@ -166,13 +163,15 @@ def scan():
     time.sleep(3)
     gateway = subprocess.run(["ip", "-4", "route", "show", "default"], capture_output=True, text=True).stdout.split()
     gw = gateway[2] if len(gateway) > 2 else None
+    neighbours = [(ip, mac) for ip, mac in arp_table().items() if ip.startswith(prefix + ".")]
+    # Name lookups can take a second or two each, so run them side by side.
+    with ThreadPoolExecutor(8) as ex:
+        infos = list(ex.map(lambda n: identify(*n), neighbours))
     found = {}
-    for ip, mac in arp_table().items():
-        if ip.startswith(prefix + "."):
-            info = identify(ip, mac)
-            if ip == gw:
-                info.update(kind="router", vendor="Router")
-            found[mac] = info
+    for info in infos:
+        if info["ip"] == gw:
+            info.update(kind="router", vendor="Router")
+        found[info["mac"]] = info
     enrich(found)
     # Warn about unfamiliar devices. Phones are skipped: their Wi-Fi address
     # changes often, so they'd trigger an alert every few days.
@@ -180,8 +179,7 @@ def scan():
     first_run = not seen
     new = [i for m, i in found.items() if m not in seen and i["kind"] not in ("phone", "router")]
     seen |= set(found)
-    with open(SEEN_FILE, "w") as f:
-        json.dump(sorted(seen), f)
+    save_json(SEEN_FILE, sorted(seen))
     known = {d.get("mac", "").lower() for d in load_devices()}
     if not first_run:
         for i in new:
@@ -366,9 +364,9 @@ def push(key, value):
 
 EVENTS_FILE = DATA / "events.json"
 SEEN_FILE = DATA / "seen.json"
-FORGOTTEN_FILE = DATA / "forgotten.json"
+FORGOTTEN_FILE = DATA / "forgotten.json"  # removed devices, so re-adding restores them
 UPTIME_FILE = DATA / "uptime.json"  # last known on/off + "on since" per device, survives restarts
-UPTIME_MAX_GAP = 300  # trust the saved time only if we were checking until recently  # removed devices, so re-adding restores them
+UPTIME_MAX_GAP = 300  # trust the saved time only if we were checking until recently
 FAILS_BEFORE_OFF = 2  # consecutive failed internet checks before we call it down
 DEVICE_OFF_AFTER = 20  # seconds a device must stay unreachable before it counts as off
 DEVICE_TIMEOUT = 2.0  # per check; Wi-Fi power saving (Pi Zero, phones, plugs) can delay replies ~3 s
@@ -384,8 +382,13 @@ def load_json(path, default):
         return default
 
 
+def tmp_for(path):
+    """A temp file only this thread writes, so two writers never swap each other's file away."""
+    return path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+
+
 def save_json(path, data):
-    tmp = path.with_suffix(".tmp")
+    tmp = tmp_for(path)
     with open(tmp, "w") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     tmp.replace(path)
@@ -407,13 +410,13 @@ def notify(title, body, icon):
 
 def event(kind, text, icon="network-workgroup", alert=True):
     """Record something that happened; kind drives the colour in the UI."""
+    # The file is written under the lock too: the scanner and the sampler can log at the same moment.
     with lock:
         events.append({"t": time.time(), "kind": kind, "text": text})
-        snapshot = list(events)
-    tmp = EVENTS_FILE.with_suffix(".tmp")
-    with open(tmp, "w") as f:
-        json.dump(snapshot, f, ensure_ascii=False)
-    tmp.replace(EVENTS_FILE)
+        tmp = tmp_for(EVENTS_FILE)
+        with open(tmp, "w") as f:
+            json.dump(list(events), f, ensure_ascii=False)
+        tmp.replace(EVENTS_FILE)
     if alert:
         notify("Homebase", text, icon)
 
@@ -443,126 +446,131 @@ def sampler():
             if v.get("online") and time.time() - v.get("checked", 0) < UPTIME_MAX_GAP and v.get("since"):
                 state["devices"][k] = {"online": None, "since": v["since"]}
     while True:
-        # CLOCK_BOOTTIME keeps counting through standby, CLOCK_MONOTONIC doesn't;
-        # a jump between them means the terminal was just asleep.
-        boot, mono = time.clock_gettime(time.CLOCK_BOOTTIME), time.monotonic()
-        slept = (boot - last_boot) - (mono - last_mono)
-        last_boot, last_mono = boot, mono
-        if slept > 5:
-            woke_at = mono
-            fails.clear()
-            net_fails = 0
-            with lock:
-                # Forget pre-sleep state: it's stale, and comparing against it
-                # is what produced fake "s-a oprit / a picat" alerts on wake.
-                for v in state["devices"].values():
-                    v["online"] = None
-                state["internet"] = None
-                for k in list(state["history"]):
-                    state["history"][k].clear()
-            mins = max(1, round(slept / 60))
-            event("info", f"Terminalul s-a trezit din standby (a dormit {mins} min)", alert=False)
-        # Wi-Fi needs a few seconds to reconnect after waking; until then a
-        # failed check means "don't know yet", not "offline".
-        waking = woke_at is not None and mono - woke_at < WAKE_GRACE
+        # One bad pass (a sensor that vanished, a full disk...) must not end the
+        # loop: the page would keep showing frozen numbers and nothing restarts it.
+        try:
+            # CLOCK_BOOTTIME keeps counting through standby, CLOCK_MONOTONIC doesn't;
+            # a jump between them means the terminal was just asleep.
+            boot, mono = time.clock_gettime(time.CLOCK_BOOTTIME), time.monotonic()
+            slept = (boot - last_boot) - (mono - last_mono)
+            last_boot, last_mono = boot, mono
+            if slept > 5:
+                woke_at = mono
+                fails.clear()
+                net_fails = 0
+                with lock:
+                    # Forget pre-sleep state: it's stale, and comparing against it
+                    # is what produced fake "s-a oprit / a picat" alerts on wake.
+                    for v in state["devices"].values():
+                        v["online"] = None
+                    state["internet"] = None
+                    for k in list(state["history"]):
+                        state["history"][k].clear()
+                mins = max(1, round(slept / 60))
+                event("info", f"Terminalul s-a trezit din standby (a dormit {mins} min)", alert=False)
+            # Wi-Fi needs a few seconds to reconnect after waking; until then a
+            # failed check means "don't know yet", not "offline".
+            waking = woke_at is not None and mono - woke_at < WAKE_GRACE
 
-        s = nb.sample()
-        devices = {}
-        internet = None
-        # Devices and internet are probed every other tick to keep idle cost down.
-        if tick % 2 == 0:
-            devs = load_devices()
-            # Check all devices at once: a powered-off one costs a full timeout,
-            # and that shouldn't hold up the others.
-            with ThreadPoolExecutor(max(1, min(8, len(devs)))) as ex:
-                results = list(ex.map(check_device, devs))
-            for d, (online, lat) in zip(devs, results):
-                # A device in Wi-Fi power saving can miss a few checks while it's
-                # perfectly fine, so it's only "off" after DEVICE_OFF_AFTER seconds
-                # of silence. Without this, a Pi Zero logged on/off every minute.
-                if online is False:
-                    first_fail = fails.setdefault(d["id"], time.time())
-                    if time.time() - first_fail < DEVICE_OFF_AFTER:
-                        # Keep showing what we knew; if we knew nothing yet (just started), "checking".
-                        prev_online = state["devices"].get(d["id"], {}).get("online")
-                        online = True if prev_online else None
-                else:
-                    fails.pop(d["id"], None)
-                if waking and online is False:
-                    online = None
-                devices[d["id"]] = {"online": online, "latency": lat, "checked": time.time(), "name": d["name"]}
-            ilat = check_internet()
-            net_fails = 0 if ilat is not None else net_fails + 1
-            internet = {"online": ilat is not None or net_fails < FAILS_BEFORE_OFF, "latency": ilat,
-                        "ssid": s["net"].get("ssid")}
-            if waking and ilat is None:
-                internet = None
-
-        changes = []
-        with lock:
-            state["netbook"] = s
-            push("cpu", s["cpu"])
-            push("mem", s["mem"]["pct"])
-            push("down", s["net"]["down"])
-            push("up", s["net"]["up"])
-            if "cpu" in s["temps"]:
-                push("temp", s["temps"]["cpu"])
-            for k, v in devices.items():
-                prev = state["devices"].get(k, {})
-                name = v.pop("name")
-                if v["online"] is None:
-                    if "since" in prev:
-                        v["since"] = prev["since"]
-                    state["devices"][k] = v
-                    continue
-                # After standby the state is unknown (None) but "since" survives,
-                # so a device that stayed on keeps its uptime.
-                if v["online"] and (prev.get("online") is False or "since" not in prev):
-                    v["since"] = time.time()
-                elif v["online"]:
-                    v["since"] = prev.get("since", time.time())
-                # Report real changes only: compare with the last state we actually saw.
-                before = prev.get("online") if prev.get("online") is not None else last_known.get(k)
-                if before is not None and before != v["online"]:
-                    changes.append(("on" if v["online"] else "off", f"{name} " + ("s-a pornit" if v["online"] else "s-a oprit"),
-                                    "computer" if v["online"] else "system-shutdown"))
-                last_known[k] = v["online"]
-                state["devices"][k] = v
-                push(f"lat:{k}", v["latency"])
-            if internet:
-                prev = state.get("internet")
-                if internet["online"] and (not prev or not prev["online"]):
-                    internet["since"] = time.time()
-                elif internet["online"]:
-                    internet["since"] = prev.get("since", time.time())
-                else:
-                    internet["down_since"] = (prev or {}).get("down_since") or time.time()
-                if prev and prev["online"] != internet["online"]:
-                    if internet["online"]:
-                        mins = max(1, round((time.time() - prev.get("down_since", time.time())) / 60))
-                        changes.append(("on", f"Internetul a revenit (a lipsit {mins} min)", "network-wireless"))
+            s = nb.sample()
+            devices = {}
+            internet = None
+            # Devices and internet are probed every other tick to keep idle cost down.
+            if tick % 2 == 0:
+                devs = load_devices()
+                # Check all devices at once: a powered-off one costs a full timeout,
+                # and that shouldn't hold up the others.
+                with ThreadPoolExecutor(max(1, min(8, len(devs)))) as ex:
+                    results = list(ex.map(check_device, devs))
+                for d, (online, lat) in zip(devs, results):
+                    # A device in Wi-Fi power saving can miss a few checks while it's
+                    # perfectly fine, so it's only "off" after DEVICE_OFF_AFTER seconds
+                    # of silence. Without this, a Pi Zero logged on/off every minute.
+                    if online is False:
+                        first_fail = fails.setdefault(d["id"], time.time())
+                        if time.time() - first_fail < DEVICE_OFF_AFTER:
+                            # Keep showing what we knew; if we knew nothing yet (just started), "checking".
+                            prev_online = state["devices"].get(d["id"], {}).get("online")
+                            online = True if prev_online else None
                     else:
-                        changes.append(("off", "Internetul a picat", "network-wireless-offline"))
-                state["internet"] = internet
-                push("net_lat", ilat)
-        for kind, text, icon in changes:
-            event(kind, text, icon)
-        # TVs: read volume/playback while they're on (cheap: 4 tiny SOAP calls).
-        if tick % 2 == 0:
-            for d in load_devices():
-                if d.get("dlna") and devices.get(d["id"], {}).get("online"):
-                    st = tv_status(d["dlna"])
-                    with lock:
-                        if st:
-                            state["tv"][d["id"]] = st
-                        else:
-                            state["tv"].pop(d["id"], None)
-        if devices and (tick % 10 == 0 or changes):
+                        fails.pop(d["id"], None)
+                    if waking and online is False:
+                        online = None
+                    devices[d["id"]] = {"online": online, "latency": lat, "checked": time.time(), "name": d["name"]}
+                ilat = check_internet()
+                net_fails = 0 if ilat is not None else net_fails + 1
+                internet = {"online": ilat is not None or net_fails < FAILS_BEFORE_OFF, "latency": ilat,
+                            "ssid": s["net"].get("ssid")}
+                if waking and ilat is None:
+                    internet = None
+
+            changes = []
             with lock:
-                snap = {k: {"online": on, "since": state["devices"].get(k, {}).get("since") if on else None,
-                            "checked": time.time()}
-                        for k, on in last_known.items()}
-            save_json(UPTIME_FILE, snap)
+                state["netbook"] = s
+                push("cpu", s["cpu"])
+                push("mem", s["mem"]["pct"])
+                push("down", s["net"]["down"])
+                push("up", s["net"]["up"])
+                if "cpu" in s["temps"]:
+                    push("temp", s["temps"]["cpu"])
+                for k, v in devices.items():
+                    prev = state["devices"].get(k, {})
+                    name = v.pop("name")
+                    if v["online"] is None:
+                        if "since" in prev:
+                            v["since"] = prev["since"]
+                        state["devices"][k] = v
+                        continue
+                    # After standby the state is unknown (None) but "since" survives,
+                    # so a device that stayed on keeps its uptime.
+                    if v["online"] and (prev.get("online") is False or "since" not in prev):
+                        v["since"] = time.time()
+                    elif v["online"]:
+                        v["since"] = prev.get("since", time.time())
+                    # Report real changes only: compare with the last state we actually saw.
+                    before = prev.get("online") if prev.get("online") is not None else last_known.get(k)
+                    if before is not None and before != v["online"]:
+                        changes.append(("on" if v["online"] else "off", f"{name} " + ("s-a pornit" if v["online"] else "s-a oprit"),
+                                        "computer" if v["online"] else "system-shutdown"))
+                    last_known[k] = v["online"]
+                    state["devices"][k] = v
+                    push(f"lat:{k}", v["latency"])
+                if internet:
+                    prev = state.get("internet")
+                    if internet["online"] and (not prev or not prev["online"]):
+                        internet["since"] = time.time()
+                    elif internet["online"]:
+                        internet["since"] = prev.get("since", time.time())
+                    else:
+                        internet["down_since"] = (prev or {}).get("down_since") or time.time()
+                    if prev and prev["online"] != internet["online"]:
+                        if internet["online"]:
+                            mins = max(1, round((time.time() - prev.get("down_since", time.time())) / 60))
+                            changes.append(("on", f"Internetul a revenit (a lipsit {mins} min)", "network-wireless"))
+                        else:
+                            changes.append(("off", "Internetul a picat", "network-wireless-offline"))
+                    state["internet"] = internet
+                    push("net_lat", ilat)
+            for kind, text, icon in changes:
+                event(kind, text, icon)
+            # TVs: read volume/playback while they're on (cheap: 4 tiny SOAP calls).
+            if tick % 2 == 0:
+                for d in load_devices():
+                    if d.get("dlna") and devices.get(d["id"], {}).get("online"):
+                        st = tv_status(d["dlna"])
+                        with lock:
+                            if st:
+                                state["tv"][d["id"]] = st
+                            else:
+                                state["tv"].pop(d["id"], None)
+            if devices and (tick % 10 == 0 or changes):
+                with lock:
+                    snap = {k: {"online": on, "since": state["devices"].get(k, {}).get("since") if on else None,
+                                "checked": time.time()}
+                            for k, on in last_known.items()}
+                save_json(UPTIME_FILE, snap)
+        except Exception:
+            pass
         tick += 1
         time.sleep(INTERVAL)
 
@@ -904,7 +912,10 @@ class TermSession:
 
     def write(self, data):
         if not self.closed:
-            os.write(self.fd, data)
+            try:
+                os.write(self.fd, data)
+            except OSError:
+                pass  # ssh just exited; the stream reports it
 
     def resize(self, cols, rows):
         if not self.closed:
@@ -1163,8 +1174,12 @@ class Handler(BaseHTTPRequestHandler):
             if op == "input":
                 t.write(body)
             elif op == "resize":
-                size = json.loads(body or b"{}")
-                t.resize(max(10, min(500, int(size.get("cols", 80)))), max(5, min(200, int(size.get("rows", 24)))))
+                try:
+                    size = json.loads(body or b"{}")
+                    cols, rows = int(size.get("cols", 80)), int(size.get("rows", 24))
+                    t.resize(max(10, min(500, cols)), max(5, min(200, rows)))
+                except (ValueError, TypeError, AttributeError, OSError):
+                    return self.send(400, {"error": "bad size"})
             elif op == "close":
                 t.kill()
             else:

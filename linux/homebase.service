@@ -1,0 +1,11 @@
+[Unit]
+Description=Homebase control panel (http://127.0.0.1:8800)
+
+[Service]
+# Assumes the project lives in ~/Projects/homebase-app; change the path if not.
+ExecStart=/usr/bin/python3 %h/Projects/homebase-app/server/server.py
+Restart=on-failure
+Nice=10
+
+[Install]
+WantedBy=default.target

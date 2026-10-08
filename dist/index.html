@@ -1,14 +1,5 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Homebase</title>
-<body style="background:#0b0f14;color:#e6edf3;font:15px system-ui;display:grid;place-items:center;height:100vh;margin:0">
-<p>Se pornește Homebase…</p>
-<script>
-  // Fallback page: keep trying the local server until it answers.
-  // no-cors: this page lives on tauri://localhost, so a normal fetch is blocked
-  // by CORS even when the server is up. We only need to know it's reachable.
-  const go = () => fetch('http://127.0.0.1:8800/api/state', { cache: 'no-store', mode: 'no-cors' })
-    .then(() => location.replace('http://127.0.0.1:8800/'))
-    .catch(() => setTimeout(go, 1000));
-  go();
-</script>
+<!-- Unused: the window opens http://127.0.0.1:8800/ directly (see src-tauri/src/main.rs).
+     Tauri just needs a frontendDist to build. -->
