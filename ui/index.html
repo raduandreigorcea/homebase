@@ -7,6 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2310151c'/%3E%3Cpath d='M8 17l8-7 8 7v7H8z' fill='none' stroke='%2334d399' stroke-width='2.5' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
   :root {
+    --mono: "JetBrainsMono Nerd Font", "JetBrains Mono", "Source Code Pro", "Cascadia Mono", "DejaVu Sans Mono", monospace;
     color-scheme: dark;
     --bg: #0b0f14;
     --panel: #121820;
@@ -25,7 +26,7 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
   body {
-    font: 14px/1.45 "Inter", "Cantarell", system-ui, sans-serif;
+    font: 13px/1.5 var(--mono);
     padding: 24px;
     min-height: 100vh;
   }
@@ -125,7 +126,7 @@
   .gauge { text-align: center; }
   .gauge svg { width: 100%; max-width: 120px; height: auto; display: block; margin: 0 auto; }
   .gauge .lbl { color: var(--muted); font-size: 12px; margin-top: 2px; }
-  .gauge .sub { color: var(--dim); font-size: 11px; min-height: 16px; }
+  .gauge .sub { color: var(--dim); font-size: 11px; min-height: 16px; white-space: nowrap; }
 
   .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
   .row:first-child { border-top: 0; }
@@ -214,8 +215,9 @@
   .ev.on i { background: var(--green); } .ev.off i { background: var(--red); } .ev.new i { background: var(--amber); }
   .ev-day { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin: 10px 0 2px; }
   .ev-day:first-child { margin-top: 0; }
-  .bat { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .bat { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 8px; }
   .bat-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .bat-info span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bat-net { margin-left: auto; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
   .bat-net svg { width: 18px; height: 18px; flex: none; }
   .bat-net b { color: var(--text); font-weight: 600; }
@@ -666,6 +668,14 @@ function drawNetChart(svg, data, ok) {
   const y = v => h - pad - Math.min(v, top) / top * (h - 2 * pad);
   const col = ok ? 'var(--green)' : 'var(--red)';
   let out = '';
+  // Until the history fills up (after a restart or standby), the empty left part
+  // is a faint dotted line at the first known level, so the chart always spans the bar.
+  const firstIdx = data.findIndex(v => v != null);
+  const startX = firstIdx < 0 ? right : off + firstIdx * step;
+  if (startX - pad > 2) {
+    const fy = firstIdx < 0 ? h / 2 : y(data[firstIdx]);
+    out += `<line x1="${pad}" x2="${startX.toFixed(1)}" y1="${fy.toFixed(1)}" y2="${fy.toFixed(1)}" stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round"/>`;
+  }
   // Missed checks (null) break the line instead of being drawn as 0.
   let path = '', pen = false, lastPt = null;
   data.forEach((v, i) => {
@@ -741,7 +751,9 @@ function render(s) {
 
   gauge($('g-cpu'), nb.cpu, Math.round(nb.cpu) + '%', color(nb.cpu));
   gauge($('g-mem'), nb.mem.pct, Math.round(nb.mem.pct) + '%', color(nb.mem.pct, 75, 90));
-  $('g-mem-sub').textContent = `${bytes(nb.mem.used)} din ${bytes(nb.mem.total)}`;
+  // "2.1 / 3.6 GB": short enough for one line under the gauge in a monospace font.
+  const [mu, mt] = [bytes(nb.mem.used), bytes(nb.mem.total)];
+  $('g-mem-sub').textContent = mu.split(' ')[1] === mt.split(' ')[1] ? `${mu.split(' ')[0]} / ${mt}` : `${mu} / ${mt}`;
   const t = nb.temps.cpu;
   gauge($('g-temp'), t ? (t - 30) / 70 * 100 : 0, t ? Math.round(t) + '°' : '–', t ? color(t, 70, 85) : 'var(--dim)');
 
@@ -847,7 +859,7 @@ async function openTerminal(dev) {
   $('term-body').innerHTML = '';
 
   term = new Terminal({
-    fontFamily: '"JetBrains Mono", "Cascadia Mono", "DejaVu Sans Mono", monospace',
+    fontFamily: getComputedStyle(document.documentElement).getPropertyValue('--mono'),
     fontSize: 14, cursorBlink: true, scrollback: 3000,
     theme: { background: '#0b0f14', foreground: '#e6edf3', cursor: '#34d399', cursorAccent: '#0b0f14',
              selectionBackground: '#264f78', black: '#1b2430', brightBlack: '#5b6876',
