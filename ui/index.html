@@ -67,7 +67,9 @@
   .stack { display: grid; gap: 16px; align-content: start; }
 
   /* Device card */
-  .device { display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 18px; transition: border-color .15s; }
+  .device { position: relative; display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 18px; transition: border-color .15s, box-shadow .15s; }
+  /* A file dragged over a card that can receive it. */
+  .device.drop { border-color: var(--green); box-shadow: 0 0 0 3px rgba(52, 211, 153, .15); }
   .device:hover { border-color: #2c3846; }
   .dev-head { display: flex; align-items: flex-start; gap: 12px; }
   .dev-icon {
@@ -139,7 +141,9 @@
   .bar i { display: block; height: 100%; background: var(--blue); border-radius: 99px; }
 
   .spark { width: 100%; height: 56px; display: block; }
-  .device .spark { height: 30px; }
+  /* The graph sits right above the buttons, so it lines up across cards whatever is above it. */
+  .device .spark { height: 30px; margin-top: auto; }
+  .device .spark + .actions { margin-top: 0; }
   .spark-wrap { display: grid; gap: 4px; }
   .spark-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
   .spark-head b { color: var(--text); font-weight: 600; }
@@ -178,6 +182,9 @@
   .dlg input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
   .dlg .err-msg { color: var(--red); font-size: 12px; margin-top: 6px; min-height: 16px; }
   .dlg .row-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  /* A secondary action on the left of the dialog's buttons (e.g. remove key access). */
+  .dlg .row-btns .dlg-extra { margin-right: auto; white-space: nowrap; background: transparent; border-color: transparent; color: var(--red); font-weight: 500; padding-inline: 4px; }
+  .dlg .row-btns .dlg-extra:hover { background: transparent; text-decoration: underline; }
   button.danger { background: var(--red); color: #3b0909; border-color: transparent; }
   button.danger:hover { background: #fca5a5; }
   .stale { color: var(--amber); font-size: 12px; text-transform: none; letter-spacing: 0; font-weight: 500; }
@@ -227,6 +234,22 @@
   .bat-net.off b { color: var(--red); }
   .bat svg { width: 18px; height: 18px; flex: none; }
   .bat b { color: var(--text); font-weight: 600; }
+  /* Command palette (press /). */
+  .pal-back { position: fixed; inset: 0; z-index: 20; background: rgba(4, 7, 10, .6); display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; }
+  .pal-back[hidden] { display: none; }
+  .pal { width: min(620px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .55); }
+  .pal-in { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .pal-p { color: var(--green); white-space: nowrap; }
+  .pal-in input { flex: 1; min-width: 0; font: inherit; font-size: 15px; color: var(--text); background: transparent; border: 0; outline: none; caret-color: var(--green); }
+  .pal-list { max-height: 50vh; overflow-y: auto; padding: 6px; }
+  .pal-item { display: flex; justify-content: space-between; gap: 16px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+  .pal-item b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pal-item span { color: var(--dim); white-space: nowrap; }
+  .pal-item.sel { background: var(--panel-2); }
+  .pal-item.sel b { color: var(--green); }
+  .pal-empty { padding: 10px; color: var(--dim); }
+  .pal-help { padding: 8px 16px; border-top: 1px solid var(--line); color: var(--dim); font-size: 11px; }
+
   .term-modal { position: fixed; inset: 0; background: rgba(4, 7, 10, .72); display: grid; place-items: center; padding: 24px; z-index: 10; }
   .term-modal[hidden] { display: none; }
   .term-win { width: min(1100px, 100%); height: min(720px, 100%); display: flex; flex-direction: column;
@@ -252,6 +275,11 @@
      #000 with a native scrollbar: that leftover strip showed as a black bar at the bottom. */
   .term-body .xterm .xterm-viewport { background-color: transparent; scrollbar-width: none; }
   .term-body .xterm .xterm-viewport::-webkit-scrollbar { display: none; }
+  .minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); gap: 14px; }
+  .mini > div { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 11px; color: var(--muted); }
+  .mini b { color: var(--text); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .mini > i { display: block; height: 3px; margin-top: 4px; border-radius: 99px; background: var(--panel-2); overflow: hidden; }
+  .mini > i > i { display: block; height: 100%; border-radius: 99px; }
   .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
   .meter-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
   .meter-head b { color: var(--text); font-weight: 600; font-size: 14px; }
@@ -330,7 +358,15 @@
   </div>
 </main>
 
-<footer>Se actualizează la fiecare 2 secunde · rulează local pe terminal</footer>
+<footer>Se actualizează la fiecare 2 secunde · rulează local pe terminal · apasă / pentru comenzi</footer>
+<div class="pal-back" id="pal" hidden>
+  <div class="pal" role="dialog" aria-modal="true" aria-label="Comenzi">
+    <label class="pal-in"><span class="pal-p">homebase:~$</span><input id="pal-input" autocomplete="off" spellcheck="false" placeholder="ssh, wake, send, speed…"></label>
+    <div class="pal-list" id="pal-list" role="listbox"></div>
+    <div class="pal-help">Tab completează · ↑↓ alege · Enter rulează · Esc închide</div>
+  </div>
+</div>
+<input type="file" id="send-file" multiple hidden>
 <div class="toast" id="toast"></div>
 
 <div class="term-modal" id="term-modal" hidden>
@@ -445,7 +481,7 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   }, 110);
 }
 
-function deviceCard(d, st, hist, now, stats, tv) {
+function deviceCard(d, st, hist, now, stats, tv, ssh) {
   const online = st?.online;
   const checked = st != null && st.online != null;
   const pillCls = !checked ? '' : online ? 'on' : 'off';
@@ -476,6 +512,7 @@ function deviceCard(d, st, hist, now, stats, tv) {
     ? `<button data-act="agent">${ICONS.chart} ${d.has_agent ? 'Reconectează statisticile' : 'Activează statistici'}</button>` : '';
   // Response time is mostly noise; it only earns a (quiet) line when the device is up.
   const latLine = online && d.probe_port && !tv && !stats;
+  const latSpark = latLine ? `<svg class="spark" id="lat-${esc(d.id)}" preserveAspectRatio="none" aria-label="Timp de răspuns, ultimele 3 minute"></svg>` : '';
   return `
   <section class="card device ${checked && !online ? 'is-off' : ''}" data-id="${esc(d.id)}">
     <div class="dev-head">
@@ -494,12 +531,13 @@ function deviceCard(d, st, hist, now, stats, tv) {
       ${st.latency != null ? `<div><span>Răspuns</span><b>${Math.round(st.latency)} ms</b></div>` : ''}
       <div><span>Pornit de</span><b>${since}</b></div>
       ${third}
+      ${speeds[d.id] ? `<div><span>Viteză</span><b>↓${speeds[d.id].down ?? '–'} ↑${speeds[d.id].up ?? '–'}</b></div>` : ''}
     </div>` : !checked ? `<div class="facts">
       <div><span>Răspuns</span><b class="tbar">${tbarFrame(0)}</b></div>
       <div><span>Pornit de</span><b class="tbar">${tbarFrame(0)}</b></div>
       ${third}
     </div>${d.probe_port && !d.dlna ? '<svg class="spark"></svg>' : ''}` : ''}
-    ${tvActive ? tvBlock(d, tv) : stats ? statsBlock(d, stats) : latLine ? `<svg class="spark" id="lat-${esc(d.id)}" preserveAspectRatio="none" aria-label="Timp de răspuns, ultimele 3 minute"></svg>` : ''}
+    ${tvActive ? tvBlock(d, tv) : stats ? statsBlock(d, stats) : ssh && online ? sshStatsBlock(ssh) + latSpark : latLine ? latSpark : ''}
     ${connectBtn || wakeBtn || statsBtn ? `<div class="actions">${connectBtn}${wakeBtn}${statsBtn}</div>` : ''}
   </section>`;
 }
@@ -547,10 +585,10 @@ function tvBlock(d, tv) {
     </div>`;
 }
 
-function meter(label, pct, detail, warn = 70, crit = 90) {
+function meter(label, pct, detail, warn = 70, crit = 90, shown = null) {
   if (pct == null) return '';
   const p = Math.max(0, Math.min(100, pct));
-  return `<div class="meter"><div class="meter-head"><span>${label}</span><b>${Math.round(p)}%</b></div>
+  return `<div class="meter"><div class="meter-head"><span>${label}</span><b>${shown ?? Math.round(p) + '%'}</b></div>
     <div class="bar"><i style="width:${p}%;background:${color(p, warn, crit)}"></i></div>
     <div class="meter-sub">${detail || '&nbsp;'}</div></div>`;
 }
@@ -566,6 +604,24 @@ function statsBlock(d, x) {
     <div class="spark-wrap">
       <div class="spark-head"><span>Procesor · ultimele minute</span><span>↓ <b>${bytes(x.net_down, true)}</b> &nbsp;↑ <b>${bytes(x.net_up, true)}</b></span></div>
       <svg class="spark" id="cpu-${esc(d.id)}" preserveAspectRatio="none"></svg>
+    </div>`;
+}
+
+// Read over SSH from Linux devices (no agent installed there).
+// One compact row: label, value and a thin bar each; the details are in the tooltip.
+function sshStatsBlock(x) {
+  const memUsed = x.mem_total - x.mem_free, diskUsed = x.disk_total - x.disk_free;
+  const mini = (label, pct, shown, title, warn, crit) => {
+    if (pct == null && shown == null) return '';
+    const p = Math.max(0, Math.min(100, pct ?? 0));
+    return `<div class="mini" title="${esc(title)}"><div><span>${label}</span><b>${shown ?? Math.round(p) + '%'}</b></div>
+      <i><i style="width:${p}%;background:${color(p, warn, crit)}"></i></i></div>`;
+  };
+  return `<div class="minis">
+      ${mini('CPU', x.cpu, x.cpu == null ? '…' : null, 'Procesor', 70, 90)}
+      ${mini('RAM', 100 * memUsed / x.mem_total, null, `Memorie: ${bytes(memUsed)} din ${bytes(x.mem_total)}`, 75, 90)}
+      ${x.temp != null ? mini('Temp', x.temp, `${Math.round(x.temp)}°`, 'Temperatura procesorului', 65, 80) : ''}
+      ${x.disk_total ? mini('Disc', 100 * diskUsed / x.disk_total, null, `Disc: ${bytes(x.disk_free)} liber din ${bytes(x.disk_total)}`, 85, 95) : ''}
     </div>`;
 }
 
@@ -763,12 +819,12 @@ function render(s) {
   const h = s.history || {};
 
   // Devices
-  const html = s.devices.map(d => deviceCard(d, s.status[d.id], h['lat:' + d.id], s.now, s.stats?.[d.id], s.tv?.[d.id])).join('');
+  const html = s.devices.map(d => deviceCard(d, s.status[d.id], h['lat:' + d.id], s.now, s.stats?.[d.id], s.tv?.[d.id], s.sshstats?.[d.id])).join('');
   const box = $('devices');
   const empty = `<section class="card welcome"><h3>Bun venit în Homebase</h3>
     <p>Aici apar dispozitivele tale. Alege-le din lista <b>Găsite în rețea</b> de mai jos și apasă <b>Adaugă</b>.</p></section>`;
   const out = html || empty;
-  if (box.dataset.html !== out && !pointerHeld && !box.querySelector('.busy')) { box.innerHTML = out; box.dataset.html = out; }
+  if (box.dataset.html !== out && !pointerHeld && !box.querySelector('.busy, .drop')) { box.innerHTML = out; box.dataset.html = out; }
 
   // Discovered devices: don't redraw while the user is typing a name.
   const disc = $('discovered');
@@ -824,7 +880,15 @@ function tick() {
 tick(); setInterval(tick, 10000);
 
 // --- Built-in terminal (xterm.js, loaded only the first time it's needed) ---
-let termDev = null;
+let termDev = null, termMode = 'shell';
+const speeds = {};  // last speed test per device, shown on its card until the page reloads
+// What the terminal window says it's doing, per mode.
+const TERM_MODES = {
+  shell: null,
+  update: 'Actualizez sistemul (sudo apt update && full-upgrade)…',
+  reboot: 'Repornesc dispozitivul…',
+  poweroff: 'Opresc dispozitivul…',
+};
 let term = null, termSid = null, termES = null, termFit = null, termEnded = false, termTail = '';
 let termPending = '', termSending = false;
 
@@ -871,8 +935,9 @@ function termStatus(text, working, ended = false) {
   $('term-status').innerHTML = text ? `${working ? '<span class="spin" style="width:12px;height:12px"></span>' : '<span class="dot"></span>'}${esc(text)}` : '';
 }
 
-async function openTerminal(dev) {
+async function openTerminal(dev, mode = 'shell') {
   if (!dev) return;
+  termMode = mode;
   // Nothing is assumed about the login: the first time, ask which user to sign in as.
   if (!dev.ssh_user) {
     const user = await dialog({
@@ -909,10 +974,11 @@ async function openTerminal(dev) {
   termFit.fit();
   term.focus();
   term.writeln(`\x1b[90mSe conectează la ${dev.name}…\x1b[0m`);
+  if (TERM_MODES[mode]) term.writeln(`\x1b[32m${TERM_MODES[mode]}\x1b[0m`);
   termEnded = false; termTail = '';
 
   let r;
-  try { r = await (await fetch(`/api/term/start/${encodeURIComponent(dev.id)}`, { method: 'POST' })).json(); } catch {}
+  try { r = await (await fetch(`/api/term/start/${encodeURIComponent(dev.id)}`, { method: 'POST', body: JSON.stringify({ mode }) })).json(); } catch {}
   if (!r?.ok) { term.writeln('\x1b[31mNu s-a putut porni conexiunea.\x1b[0m'); termStatus('Eroare', false, true); return; }
   termSid = r.sid;
   termPost('resize', JSON.stringify({ cols: term.cols, rows: term.rows }));
@@ -949,7 +1015,7 @@ async function openTerminal(dev) {
           'Dacă tot nu merge, SSH e oprit: activează-l din Raspberry Pi Imager sau cu sudo raspi-config.', ['retry', 'Reîncearcă']);
     } else if (/timed out|No route to host|Could not resolve/.test(termTail)) {
       say('Dispozitivul nu răspunde. Verifică dacă e pornit și conectat la rețea.', ['retry', 'Reîncearcă']);
-    } else {
+    } else if (termMode === 'shell') {
       $('term-actions').innerHTML = '<button data-term="retry">Reconectează</button>';
     }
     term.writeln('\r\n\x1b[90m[Conexiune închisă · apasă orice tastă ca să închizi]\x1b[0m');
@@ -1029,7 +1095,7 @@ $('term-actions').addEventListener('click', async e => {
       input: { value: dev.ssh_user || '', validate: v => v ? USER_OK(v) : 'Scrie utilizatorul' } });
     if (!user || !await saveDevice(dev.id, { ssh_user: user })) return;
   }
-  openTerminal(last.devices.find(x => x.id === dev.id) || dev);
+  openTerminal(last.devices.find(x => x.id === dev.id) || dev, termMode);
 });
 addEventListener('resize', () => { if (termFit) termFit.fit(); });
 
@@ -1101,20 +1167,60 @@ async function saveDevice(id, changes) {
 async function editDevice(d) {
   if (!d) return;
   const fields = [{ key: 'name', label: 'Nume', value: d.name, validate: v => v ? '' : 'Scrie un nume' }];
-  if (d.ssh || ['pi', 'other'].includes(d.kind)) {
+  if (d.kind !== 'tv') {
     fields.push({ key: 'ssh_user', label: 'Utilizator SSH', value: d.ssh_user || '', placeholder: 'ex: pi, admin, ubuntu',
-                  hint: 'Cel ales la instalarea sistemului (în Raspberry Pi Imager: „username”).', validate: USER_OK });
+                  hint: d.windows
+                    ? 'Utilizatorul de Windows. Pe PC activează întâi „OpenSSH Server” (Setări › Sistem › Funcții opționale).'
+                    : 'Cel ales la instalarea sistemului (în Raspberry Pi Imager: „username”).',
+                  validate: v => v ? USER_OK(v) : '' });
   }
   if (['desktop', 'laptop', 'other'].includes(d.kind) || d.rustdesk_id) {
     fields.push({ key: 'rustdesk_id', label: 'ID RustDesk', value: d.rustdesk_id || '', numeric: true, placeholder: 'ex: 1 234 567 890',
                   hint: 'Numărul de la „ID” din RustDesk, pe dispozitiv. Gol dacă nu folosești RustDesk.', validate: RID_OK });
   }
-  const v = await dialog({ title: 'Setări dispozitiv', icon: d.kind in ICONS ? d.kind : 'other', ok: 'Salvează', fields });
-  if (v && await saveDevice(d.id, v)) toast('Salvat', 'ok');
+  if (d.kind !== 'tv') {
+    fields.push({ key: 'ssh_password', label: 'Parolă SSH', secret: true,
+                  placeholder: d.key ? 'deja configurat' : 'parola dispozitivului',
+                  hint: d.key ? 'Accesul fără parolă merge. Scrie parola doar ca să-l refaci; „Scoate cheia” îl oprește.'
+                              : 'Folosită o singură dată, ca să configureze accesul fără parolă. Nu se salvează nicăieri.' });
+  }
+  const v = await dialog({ title: 'Setări dispozitiv', icon: d.kind in ICONS ? d.kind : 'other', ok: 'Salvează', fields,
+                          extra: d.key ? { key: 'keyremove', label: 'Scoate cheia' } : null });
+  if (!v) return;
+  if (v._extra === 'keyremove') return removeKey(d);
+  const password = v.ssh_password;
+  delete v.ssh_password;
+  if (!await saveDevice(d.id, v)) return;
+  if (!password) return toast('Salvat', 'ok');
+  if (!v.ssh_user) return toast('Salvat. Pentru acces fără parolă, completează și utilizatorul SSH.', 'err');
+  toastProgress(`Configurez accesul fără parolă pe ${v.name || d.name}…`);
+  let j;
+  try {
+    j = await (await fetch(`/api/keysetup/${encodeURIComponent(d.id)}`, { method: 'POST', body: JSON.stringify({ password }) })).json();
+  } catch {}
+  if (j?.ok) toast(`Gata! ${v.name || d.name} merge acum fără parolă`, 'ok');
+  else toast(j?.error || 'Eroare: serverul nu răspunde', 'err');
+  poll();
+}
+
+async function removeKey(d) {
+  const go = await dialog({
+    title: `Scoți accesul fără parolă de pe ${d.name}?`, icon: 'x', danger: true, ok: 'Scoate',
+    text: 'Homebase își șterge cheia de pe dispozitiv. Statisticile, fișierele și testul de viteză nu mai merg ' +
+          'până pui din nou parola în setări. Terminalul merge în continuare, cu parolă.',
+  });
+  if (!go) return;
+  toastProgress(`Scot cheia de pe ${d.name}…`);
+  let j;
+  try { j = await (await fetch(`/api/keyremove/${encodeURIComponent(d.id)}`, { method: 'POST' })).json(); } catch {}
+  if (j?.ok) toast(`Accesul fără parolă pe ${d.name} a fost scos`, 'ok');
+  else toast(j?.error || 'Eroare: serverul nu răspunde', 'err');
+  poll();
 }
 
 // `input` asks for one value (resolves to the string); `fields` asks for several (resolves to {key: value}).
-function dialog({ title, text = '', icon = 'info', ok = 'OK', danger = false, input = null, fields = null }) {
+// `extra` adds a left-hand button: {key, label}; choosing it resolves to {_extra: key}.
+function dialog({ title, text = '', icon = 'info', ok = 'OK', danger = false, input = null, fields = null, extra = null }) {
   const list = fields || (input ? [{ key: '_', ...input }] : []);
   return new Promise(resolve => {
     const back = document.createElement('div');
@@ -1126,12 +1232,13 @@ function dialog({ title, text = '', icon = 'info', ok = 'OK', danger = false, in
         ${text ? `<p>${esc(text)}</p>` : ''}
         ${list.map(f => `
           <label class="dlg-field">${f.label ? `<span>${esc(f.label)}</span>` : ''}
-            <input type="text" data-key="${esc(f.key)}" inputmode="${f.numeric ? 'numeric' : 'text'}" autocomplete="off" spellcheck="false"
+            <input type="${f.secret ? 'password' : 'text'}" data-key="${esc(f.key)}" inputmode="${f.numeric ? 'numeric' : 'text'}" autocomplete="${f.secret ? 'new-password' : 'off'}" spellcheck="false"
                    placeholder="${esc(f.placeholder || '')}" value="${esc(f.value || '')}">
             ${f.hint ? `<small>${esc(f.hint)}</small>` : ''}
           </label>`).join('')}
         ${list.length ? '<div class="err-msg"></div>' : ''}
         <div class="row-btns">
+          ${extra ? `<button data-r="extra" class="dlg-extra">${esc(extra.label)}</button>` : ''}
           <button data-r="no">Anulează</button>
           <button data-r="yes" class="${danger ? 'danger' : 'primary'}">${esc(ok)}</button>
         </div>
@@ -1151,7 +1258,7 @@ function dialog({ title, text = '', icon = 'info', ok = 'OK', danger = false, in
       if (!list.length) return done(true);
       const out = {};
       for (const [i, f] of list.entries()) {
-        const v = inputs[i].value.trim();
+        const v = f.secret ? inputs[i].value : inputs[i].value.trim();  // a password may start or end with a space
         const bad = f.validate?.(v);
         if (bad) { back.querySelector('.err-msg').textContent = bad; inputs[i].focus(); return; }
         out[f.key] = v;
@@ -1167,6 +1274,7 @@ function dialog({ title, text = '', icon = 'info', ok = 'OK', danger = false, in
       if (e.target === back) return done(null);
       const r = e.target.closest('[data-r]')?.dataset.r;
       if (r === 'no') done(null);
+      else if (r === 'extra') done({ _extra: extra.key });
       else if (r === 'yes') accept();
     });
   });
@@ -1302,6 +1410,192 @@ $('discovered').addEventListener('click', async e => {
         await poll();
       } catch { toast('Eroare: serverul nu răspunde', 'err'); }
     });
+  }
+});
+
+// --- Actions run from the / palette ------------------------------------------
+
+// [action, label, command] per device; the command is what you type in the palette.
+function deviceActions(d) {
+  const out = [];
+  if (d.ssh) out.push(['terminal', 'Deschide terminal', 'ssh']);
+  if (d.rustdesk_id) out.push(['connect', 'Conectare RustDesk', 'connect']);
+  if (d.has_wake) out.push(['wake', 'Pornește de la distanță', 'wake']);
+  if (d.ssh && !d.key) out.push(['key', 'Acces fără parolă…', 'key']);
+  if (d.key) {
+    out.push(['send', 'Trimite fișiere…', 'send'], ['speed', 'Test de viteză', 'speed']);
+    if (!d.windows) out.push(['update', 'Actualizează sistemul', 'update']);
+    out.push(['reboot', 'Repornește', 'reboot'], ['poweroff', 'Oprește', 'poweroff']);
+  }
+  return out;
+}
+
+async function doAction(act, d) {
+  if (!d) return;
+  const name = d.name;
+  if (act === 'terminal') return openTerminal(d);
+  if (act === 'edit') return editDevice(d);
+  if (act === 'key') return editDevice(d);  // the password goes in the device's settings
+  if (act === 'update') return openTerminal(d, 'update');
+  if (act === 'reboot' || act === 'poweroff') {
+    const reboot = act === 'reboot';
+    const go = await dialog({
+      title: `${reboot ? 'Repornești' : 'Oprești'} ${name}?`, icon: 'power', danger: !reboot, ok: reboot ? 'Repornește' : 'Oprește',
+      text: reboot ? 'Revine în rețea în 1–2 minute.' : 'Ca să-l pornești din nou trebuie apăsat butonul de pe el (sau scos și băgat în priză).',
+    });
+    if (go) openTerminal(d, act);
+    return;
+  }
+  if (act === 'speed') return speedTest(d);
+  if (act === 'send') { sendTarget = d; $('send-file').value = ''; return $('send-file').click(); }
+  if (act === 'connect' || act === 'wake') {
+    if (act === 'connect') toast('Se deschide RustDesk… poate dura câteva secunde', 'info');
+    try {
+      const j = await (await fetch(`/api/${act}/${encodeURIComponent(d.id)}`, { method: 'POST' })).json();
+      if (act === 'wake') toast('Semnal de pornire trimis. Poate dura un minut.', 'info');
+      else if (!j.ok) toast('Nu s-a putut deschide RustDesk', 'err');
+    } catch { toast('Eroare: serverul nu răspunde', 'err'); }
+  }
+}
+
+async function speedTest(d) {
+  toast(`Se măsoară viteza către ${d.name}… (~8 secunde)`, 'info');
+  let j;
+  try { j = await (await fetch(`/api/speed/${encodeURIComponent(d.id)}`, { method: 'POST' })).json(); } catch {}
+  if (!j?.ok) return toast(`Nu s-a putut măsura viteza către ${d.name}`, 'err');
+  const fmt = v => v == null ? '–' : v >= 100 ? Math.round(v) : v.toFixed(1);
+  speeds[d.id] = { down: fmt(j.down), up: fmt(j.up) };
+  toast(`${d.name}: ↓ ${fmt(j.down)} Mbit/s · ↑ ${fmt(j.up)} Mbit/s`, 'ok');
+  poll();
+}
+
+// --- Sending files: "send <device>" in the palette, or drop files on a card ---
+
+let sendTarget = null;
+$('send-file').addEventListener('change', () => {
+  if (sendTarget && $('send-file').files.length) sendFiles(sendTarget, [...$('send-file').files]);
+});
+
+// A toast that stays up and updates (upload progress), until a normal toast replaces it.
+function toastProgress(msg) {
+  const t = $('toast');
+  t.className = 'toast info show';
+  t.innerHTML = `<span class="ti"><span class="spin" style="width:14px;height:14px"></span></span><span>${esc(msg)}</span>`;
+  clearTimeout(t._h);
+}
+
+function uploadOne(d, file, label) {
+  return new Promise(resolve => {
+    const x = new XMLHttpRequest();
+    x.open('POST', `/api/send/${encodeURIComponent(d.id)}?name=${encodeURIComponent(file.name)}`);
+    x.upload.onprogress = e => {
+      if (!e.lengthComputable) return;
+      const pct = Math.round(100 * e.loaded / e.total);
+      toastProgress(pct < 100 ? `${label}: ${pct}%` : `${label}: se copiază pe ${d.name}…`);
+    };
+    x.onload = () => { try { resolve(JSON.parse(x.responseText).ok); } catch { resolve(false); } };
+    x.onerror = () => resolve(false);
+    x.send(file);
+  });
+}
+
+async function sendFiles(d, files) {
+  if (!d.key) return toast(`Pune întâi parola SSH în setările lui ${d.name} (✎)`, 'err');
+  let ok = 0;
+  for (const [i, f] of files.entries()) {
+    const label = files.length > 1 ? `${f.name} (${i + 1}/${files.length})` : f.name;
+    toastProgress(`${label}: 0%`);
+    if (await uploadOne(d, f, label)) ok++;
+  }
+  if (ok === files.length) toast(ok > 1 ? `${ok} fișiere trimise pe ${d.name} (în folderul personal)` : `${files[0].name} e pe ${d.name}, în folderul personal`, 'ok');
+  else toast(`Trimise ${ok} din ${files.length}. Verifică dacă ${d.name} e pornit.`, 'err');
+}
+
+// The browser would otherwise open a file dropped anywhere on the page.
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => e.preventDefault());
+$('devices').addEventListener('dragover', e => {
+  const card = e.target.closest('.device');
+  if (!card || !e.dataTransfer.types.includes('Files')) return;
+  e.preventDefault();
+  if (!card.classList.contains('drop')) {
+    document.querySelectorAll('.device.drop').forEach(c => c.classList.remove('drop'));
+    card.classList.add('drop');
+  }
+});
+$('devices').addEventListener('dragleave', e => {
+  const card = e.target.closest('.device');
+  if (card && !card.contains(e.relatedTarget)) card.classList.remove('drop');
+});
+$('devices').addEventListener('drop', e => {
+  const card = e.target.closest('.device');
+  document.querySelectorAll('.device.drop').forEach(c => c.classList.remove('drop'));
+  if (!card || !e.dataTransfer.files.length) return;
+  e.preventDefault();
+  sendFiles(last.devices.find(d => d.id === card.dataset.id), [...e.dataTransfer.files]);
+});
+
+// --- Command palette: press / (or Ctrl+K) -----------------------------------
+
+const norm = t => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+let palItems = [], palSel = 0;
+
+function paletteCommands() {
+  const out = [{ text: 'scan', desc: 'Caută dispozitive noi', run: () => fetch('/api/scan', { method: 'POST' }).then(() => toast('Caut în rețea…', 'info')) }];
+  for (const d of last?.devices || []) {
+    for (const [act, label, cmd] of deviceActions(d)) out.push({ text: `${cmd} ${d.name}`, desc: label.replace('…', ''), run: () => doAction(act, d) });
+    out.push({ text: `edit ${d.name}`, desc: 'Setări', run: () => doAction('edit', d) });
+  }
+  return out;
+}
+
+function renderPalette() {
+  const q = norm($('pal-input').value.trim());
+  const words = q.split(/\s+/).filter(Boolean);
+  const all = paletteCommands();
+  palItems = all.filter(c => words.every(w => norm(c.text).includes(w)))
+                .sort((a, b) => norm(b.text).startsWith(q) - norm(a.text).startsWith(q))
+                .slice(0, 9);
+  palSel = Math.min(palSel, Math.max(0, palItems.length - 1));
+  $('pal-list').innerHTML = palItems.length
+    ? palItems.map((c, i) => `<div class="pal-item ${i === palSel ? 'sel' : ''}" role="option" aria-selected="${i === palSel}" data-i="${i}"><b>${esc(c.text)}</b><span>${esc(c.desc)}</span></div>`).join('')
+    : '<div class="pal-empty">Nicio comandă. Încearcă: ssh, wake, send, speed, scan</div>';
+}
+
+function openPalette() {
+  if (!last) return;
+  $('pal').hidden = false;
+  $('pal-input').value = '';
+  palSel = 0;
+  renderPalette();
+  $('pal-input').focus();
+}
+function closePalette() { $('pal').hidden = true; }
+function runPalette(i) {
+  const c = palItems[i];
+  if (!c) return;
+  closePalette();
+  c.run();
+}
+
+$('pal-input').addEventListener('input', () => { palSel = 0; renderPalette(); });
+$('pal-input').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); palSel = (palSel + 1) % Math.max(1, palItems.length); renderPalette(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); palSel = (palSel - 1 + palItems.length) % Math.max(1, palItems.length); renderPalette(); }
+  else if (e.key === 'Tab') { e.preventDefault(); if (palItems[palSel]) { $('pal-input').value = palItems[palSel].text; renderPalette(); } }
+  else if (e.key === 'Enter') { e.preventDefault(); runPalette(palSel); }
+  else if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
+});
+$('pal-list').addEventListener('click', e => { const it = e.target.closest('.pal-item'); if (it) runPalette(+it.dataset.i); });
+$('pal').addEventListener('click', e => { if (e.target === $('pal')) closePalette(); });
+
+document.addEventListener('keydown', e => {
+  // Not while typing somewhere, nor while the terminal or a dialog is open (they need those keys).
+  if (!$('term-modal').hidden || document.querySelector('.dlg-back') || !$('pal').hidden) return;
+  const typing = e.target.closest?.('input, textarea, [contenteditable]');
+  if ((e.key === '/' && !typing) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) {
+    e.preventDefault();
+    openPalette();
   }
 });
 </script>

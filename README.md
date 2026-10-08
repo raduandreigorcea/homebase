@@ -16,6 +16,12 @@ That slow laptop in the drawer still has a screen, a keyboard and a battery. Hom
 
 - 💻 **A terminal built in.** Open an SSH session to a Raspberry Pi or any Linux box right inside the app. If something's wrong (wrong user, a freshly reinstalled device, SSH still booting) it tells you in plain words and offers the fix.
 
+- 🔑 **No more passwords.** Set up key access once (you type the password one last time) and the terminal, live stats, quick actions (update, reboot, shut down), file sending and speed tests all just work. Stats come straight over SSH: CPU, memory, temperature and disk of a Raspberry Pi, with nothing installed on it.
+
+- 📦 **Drop a file on a device.** Drag files onto a card and they land in that device's home folder.
+
+- ⌨️ **Everything from the keyboard.** Press `/` and type `ssh raspberrypi`, `wake office-pc` or `speed raspberrypi`. Tab completes.
+
 - 🖥️ **Remote desktop in one click.** Connect to a Windows PC through RustDesk, or wake it up over the network when it's off.
 
 - 📺 **Your TV, from the couch.** Volume and play / pause / seek for anything playing over DLNA, even on old budget smart TVs.

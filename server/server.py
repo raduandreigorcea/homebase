@@ -26,9 +26,10 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import identify as idf
+import remote
 
 HERE = Path(__file__).resolve().parent
 UI_DIR = HERE.parent / "ui"
@@ -36,6 +37,7 @@ UI_DIR = HERE.parent / "ui"
 # or moving the project never loses them.
 DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "homebase"
 DATA.mkdir(parents=True, exist_ok=True)
+remote.init(DATA)
 PORT = 8800
 AGENT_PORT = 8801  # listens on the LAN, only for PC agents (install + push), nothing else
 AGENTS_ENABLED = False  # PC stats paused (user's call, 2026-10-07): no LAN port is opened while False
@@ -46,7 +48,8 @@ SCAN_EVERY = 30  # seconds between network discovery sweeps (a sweep is ~254 tin
 
 lock = threading.Lock()
 devices_lock = threading.Lock()
-state = {"netbook": {}, "devices": {}, "history": {}, "discovered": {}, "last_scan": 0, "stats": {}, "tv": {}}
+state = {"netbook": {}, "devices": {}, "history": {}, "discovered": {}, "last_scan": 0, "stats": {}, "tv": {},
+         "sshstats": {}}
 
 # First three bytes of the hardware address -> maker, for devices worth naming.
 VENDORS = {
@@ -824,6 +827,8 @@ def edit_device(dev_id, body):
             user = str(body["ssh_user"]).strip()
             if user and not SSH_USER_RE.match(user):
                 return "Utilizator invalid (doar litere, cifre, - _ .)"
+            if user != dev.get("ssh_user", ""):
+                dev.pop("key", None)  # the key was set up for the old user
             if user:
                 dev["ssh_user"], dev["ssh"] = user, True
             else:
@@ -876,13 +881,11 @@ terms_lock = threading.Lock()
 
 
 class TermSession:
-    def __init__(self, device):
-        target = f"{device['ssh_user']}@{device['host']}" if device.get("ssh_user") else device["host"]
+    def __init__(self, argv):
         self.pid, self.fd = pty.fork()
-        if self.pid == 0:  # child: become ssh
+        if self.pid == 0:  # child: become ssh (or ssh-copy-id)
             os.environ["TERM"] = "xterm-256color"
-            os.execvp("ssh", ["ssh", "-o", "StrictHostKeyChecking=accept-new",
-                              "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15", "--", target])
+            os.execvp(argv[0], argv)
         self.chunks = []  # output so far, so a reconnecting page can catch up
         self.closed = False
         self.cond = threading.Condition()
@@ -929,15 +932,131 @@ class TermSession:
                 pass
 
 
-def term_start(device):
-    if not device.get("ssh") or not lan_ip(device.get("host")):
+def ssh_target(device):
+    """"user@ip" for a device, only from validated parts (it ends up as an ssh argument)."""
+    if not device or not device.get("ssh") or not lan_ip(device.get("host")):
         return None
     if device.get("ssh_user") and not SSH_USER_RE.match(device["ssh_user"]):
         return None
+    return f"{device['ssh_user']}@{device['host']}" if device.get("ssh_user") else device["host"]
+
+
+def is_windows(device):
+    return "windows" in str(device.get("os", "")).lower()
+
+
+def term_start(device, mode="shell"):
+    """mode: "shell", or a quick action ("update", "reboot"...)."""
+    target = ssh_target(device)
+    if not target:
+        return None
+    if mode == "shell":
+        argv = ["ssh", *remote.ssh_args(interactive=True), "-o", "ServerAliveInterval=15", "--", target]
+    else:
+        argv = remote.action_argv(target, is_windows(device), mode)
+    if not argv:
+        return None
     sid = secrets.token_urlsafe(16)
     with terms_lock:
-        terms[sid] = TermSession(device)
+        terms[sid] = TermSession(argv)
     return sid
+
+
+def key_setup(dev_id, password):
+    """Install Homebase's key with the device's password (used once, never stored). None or an error."""
+    dev = next((d for d in load_devices() if d["id"] == dev_id), None)
+    target = ssh_target(dev)
+    if not target:
+        return "Setează întâi utilizatorul SSH"
+    if not password:
+        return "Scrie parola"
+    err = remote.install_key(target, is_windows(dev), password)
+    with devices_lock:
+        devices = load_devices()
+        for d in devices:
+            if d["id"] == dev_id:
+                d["key"] = err is None
+        save_devices(devices)
+    return err
+
+
+def key_remove(dev_id):
+    """Take Homebase's key off the device and stop using it. None or an error."""
+    dev = next((d for d in load_devices() if d["id"] == dev_id), None)
+    target = ssh_target(dev)
+    if not target:
+        return "Dispozitivul nu are SSH configurat"
+    err = remote.remove_key(target, is_windows(dev))
+    if err is None:
+        with devices_lock:
+            devices = load_devices()
+            for d in devices:
+                if d["id"] == dev_id:
+                    d.pop("key", None)
+            save_devices(devices)
+        with lock:
+            state["sshstats"].pop(dev_id, None)
+    return err
+
+
+SSH_STATS_EVERY = 30  # seconds
+SSH_STATS_FRESH = 90
+
+
+def ssh_stats_poller():
+    """CPU, memory, disk and temperature of Linux devices with the key set up, read over SSH."""
+    while True:
+        try:
+            with lock:
+                status = dict(state["devices"])
+            devs = [d for d in load_devices() if d.get("key") and not is_windows(d)
+                    and status.get(d["id"], {}).get("online") and ssh_target(d)]
+            if devs:
+                with ThreadPoolExecutor(min(4, len(devs))) as ex:
+                    results = list(ex.map(lambda d: remote.stats(ssh_target(d), d["id"]), devs))
+                with lock:
+                    for d, st in zip(devs, results):
+                        if st:
+                            state["sshstats"][d["id"]] = st
+                            if st.get("cpu") is not None:
+                                push(f"cpu:{d['id']}", st["cpu"])
+        except Exception:
+            pass
+        time.sleep(SSH_STATS_EVERY)
+
+
+UPLOAD_MAX = 4 * 1024**3
+
+
+def safe_filename(name):
+    """The file's own name, without folders or characters a remote shell or Windows would mind."""
+    name = str(name).replace("\\", "/").rsplit("/", 1)[-1]
+    name = "".join(ch for ch in name if ch.isprintable() and ch not in '<>:"|?*$`;&')
+    name = name.strip().lstrip(".-").strip()[:120]
+    return name or "fisier"
+
+
+def receive_and_send(handler, dev, name):
+    """Save the uploaded body to a temp file, then copy it to the device with scp."""
+    target = ssh_target(dev)
+    length = int(handler.headers.get("Content-Length", 0))
+    if not target or not dev.get("key") or not 0 < length <= UPLOAD_MAX:
+        return False
+    tmp_dir = DATA / "tmp"
+    tmp_dir.mkdir(exist_ok=True)
+    tmp = tmp_dir / secrets.token_hex(8)
+    try:
+        with open(tmp, "wb") as f:
+            left = length
+            while left:
+                chunk = handler.rfile.read(min(left, 1024 * 1024))
+                if not chunk:
+                    return False
+                f.write(chunk)
+                left -= len(chunk)
+        return remote.send_file(target, tmp, safe_filename(name))
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def term_reaper():
@@ -1090,7 +1209,7 @@ class Handler(BaseHTTPRequestHandler):
             known = {d.get("mac", "").lower() for d in raw}
             devices = [{k: v for k, v in d.items() if k != "agent_token"}
                        | {"has_wake": bool(d.get("mac")) and d.get("kind") in ("desktop", "laptop", "other"),
-                          "has_agent": bool(d.get("agent_token"))} for d in raw]
+                          "has_agent": bool(d.get("agent_token")), "windows": is_windows(d)} for d in raw]
             with lock:
                 body = {
                     "netbook": state["netbook"],
@@ -1100,6 +1219,7 @@ class Handler(BaseHTTPRequestHandler):
                                    if k not in known and v["kind"] not in ("phone", "router")],
                     "last_scan": state["last_scan"],
                     "internet": state.get("internet"),
+                    "sshstats": {k: v for k, v in state["sshstats"].items() if time.time() - v["t"] < SSH_STATS_FRESH},
                     "gateway": next((v["ip"] for v in state["discovered"].values() if v["kind"] == "router"), None),
                     "events": list(events)[-30:][::-1],
                     "stats": {k: v for k, v in state["stats"].items() if time.time() - v["t"] < STATS_FRESH},
@@ -1164,7 +1284,12 @@ class Handler(BaseHTTPRequestHandler):
             sid, op = parts[2], parts[3]
             if sid == "start":
                 dev = next((d for d in load_devices() if d["id"] == op), None)
-                new = term_start(dev) if dev else None
+                try:
+                    req = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 256)) or b"{}")
+                    mode = str(req.get("mode", "shell")) if isinstance(req, dict) else "shell"
+                except (ValueError, json.JSONDecodeError):
+                    mode = "shell"
+                new = term_start(dev, mode) if dev else None
                 return self.send(200 if new else 400, {"ok": bool(new), "sid": new})
             t = terms.get(sid)
             if not t:
@@ -1185,9 +1310,30 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 return self.send(400, {"error": "bad op"})
             return self.send(200, {"ok": True})
+        if self.path.startswith("/api/send/"):
+            u = urlparse(self.path)
+            dev = next((d for d in load_devices() if d["id"] == u.path.split("/")[3]), None)
+            name = parse_qs(u.query).get("name", [""])[0]
+            return self.send(200, {"ok": bool(dev) and receive_and_send(self, dev, name)})
         if len(parts) != 3 or parts[0] != "api":
             return self.send(404, {"error": "not found"})
         action, dev_id = parts[1], parts[2]
+        if action == "keyremove":
+            err = key_remove(dev_id)
+            return self.send(200, {"ok": err is None, "error": err})
+        if action == "keysetup":
+            try:
+                req = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 1024)) or b"{}")
+                password = str(req.get("password") or "") if isinstance(req, dict) else ""
+            except (ValueError, json.JSONDecodeError):
+                return self.send(400, {"error": "bad json"})
+            err = key_setup(dev_id, password)
+            return self.send(200, {"ok": err is None, "error": err})
+        if action == "speed":
+            dev = next((d for d in load_devices() if d["id"] == dev_id), None)
+            target = ssh_target(dev) if dev and dev.get("key") else None
+            res = remote.speed(target, is_windows(dev)) if target else None
+            return self.send(200, {"ok": bool(res), **(res or {})})
         if action == "remove":
             return self.send(200, {"ok": remove_device(dev_id)})
         if action == "agent":
@@ -1229,6 +1375,7 @@ if __name__ == "__main__":
     threading.Thread(target=sampler, daemon=True).start()
     threading.Thread(target=scanner, daemon=True).start()
     threading.Thread(target=term_reaper, daemon=True).start()
+    threading.Thread(target=ssh_stats_poller, daemon=True).start()
     if AGENTS_ENABLED:
         agents = ThreadingHTTPServer(("0.0.0.0", AGENT_PORT), AgentHandler)
         threading.Thread(target=agents.serve_forever, daemon=True).start()
