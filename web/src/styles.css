@@ -321,12 +321,8 @@
   .st-modal { z-index: 12; }  /* opens from a device's big screen, so it goes on top of it */
   .st-win { width: min(560px, 100%); }
   .st-body { padding: 22px 24px 24px; display: grid; gap: 20px; justify-items: center; }
-  .st-gauge { width: 100%; max-width: 380px; display: block; overflow: visible; }
-  .st-gauge .needle { transition: transform .3s ease-out; transform-origin: 190px 190px; }
-  @media (prefers-reduced-motion: reduce) { .st-gauge .needle { transition: none; } }
-  .st-now { text-align: center; margin-top: -54px; }
-  .st-now b { display: block; font-size: 40px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
-  .st-now span { color: var(--muted); font-size: 12px; }
+  .st-gauge { width: min(100%, 340px); display: block; }
+  .st-now { text-align: center; margin-top: -8px; color: var(--muted); font-size: 12px; min-height: 1.5em; }
   .st-res { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
   .st-res div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
   .st-res span { display: block; color: var(--muted); font-size: 11px; }

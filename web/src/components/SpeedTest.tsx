@@ -25,24 +25,44 @@ function arc(from: number, to: number, r: number): string {
   return `M${x1.toFixed(1)} ${y1.toFixed(1)} A${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
 }
 
-/** The needle is the same element from one update to the next, so it glides (CSS transition). */
-function Dial({ run }: { run: SpeedRun }) {
+/** Eases toward the target angle every frame, so the needle and the coloured arc move together and smoothly
+ *  between the four-times-a-second readings. */
+function useGlide(target: number): number {
+  const [shown, setShown] = useState(target);
+  const cur = useRef(target);
+  useEffect(() => {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { cur.current = target; setShown(target); return; }
+    let raf = 0, last = performance.now();
+    const step = (now: number) => {
+      cur.current += (target - cur.current) * (1 - Math.exp(-(now - last) / 160));
+      last = now;
+      if (Math.abs(target - cur.current) < 0.1) cur.current = target;
+      setShown(cur.current);
+      if (cur.current !== target) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+  return shown;
+}
+
+/** Centre at (190, 190); the arc's open bottom holds the big number. */
+function Dial({ run, big }: { run: SpeedRun; big: string }) {
   const value = run.phase === 'download' || run.phase === 'upload' ? run.live : run.phase === 'done' ? run.down ?? 0 : 0;
   const col = run.phase === 'upload' ? 'var(--violet)' : 'var(--blue)';
-  const deg = angle(value);
-  const [nx, ny] = point(0, 118);
+  const deg = useGlide(angle(value));
+  const [nx, ny] = point(0, 112);
   return (
-    <svg class="st-gauge" viewBox="0 0 380 240" aria-hidden="true">
+    <svg class="st-gauge" viewBox="0 0 380 285" aria-hidden="true">
       <path d={arc(-120, 120, 160)} fill="none" stroke="var(--panel-2)" stroke-width="18" stroke-linecap="round" />
-      {(value || 0) > 0 && <path d={arc(-120, deg, 160)} fill="none" stroke={col} stroke-width="18" stroke-linecap="round" />}
+      {deg > -119.5 && <path d={arc(-120, deg, 160)} fill="none" stroke={col} stroke-width="18" stroke-linecap="round" />}
       {TICKS.map((t, i) => {
-        const [x, y] = point(-SWEEP / 2 + i * SWEEP / (TICKS.length - 1), 132);
+        const [x, y] = point(-SWEEP / 2 + i * SWEEP / (TICKS.length - 1), 130);
         return <text key={t} x={x.toFixed(1)} y={(y + 4).toFixed(1)} text-anchor="middle" fill="var(--dim)" font-size="12">{t}</text>;
       })}
-      <g class="needle" style={{ transform: `rotate(${deg}deg)` }}>
-        <line x1="190" y1="190" x2={nx} y2={ny} stroke="var(--text)" stroke-width="3" stroke-linecap="round" />
-      </g>
+      <line x1="190" y1="190" x2={nx} y2={ny} transform={`rotate(${deg.toFixed(2)} 190 190)`} stroke="var(--text)" stroke-width="3" stroke-linecap="round" />
       <circle cx="190" cy="190" r="7" fill="var(--text)" />
+      <text x="190" y="266" text-anchor="middle" fill="var(--text)" font-size="40" font-weight="700" style={{ fontVariantNumeric: 'tabular-nums' }}>{big}</text>
     </svg>
   );
 }
@@ -97,8 +117,8 @@ export function SpeedTest() {
           <span class="dv-tools"><button class="icon-btn" title="Close" onClick={close}><Close /></button></span>
         </div>
         <div class="st-body">
-          <div class="st-g"><Dial run={run} /></div>
-          <div class="st-now"><b>{big}</b><span>{label}</span></div>
+          <Dial run={run} big={big} />
+          <div class="st-now">{label}</div>
           <div class="st-res">
             {cell(run.phase === 'ping' ? 'on' : '', device ? 'Response' : 'Ping', run.ping != null ? String(Math.round(run.ping)) : '–', 'ms')}
             {!device && cell('', 'Jitter', run.jitter != null ? String(Math.round(run.jitter)) : '–', 'ms')}
