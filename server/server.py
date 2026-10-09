@@ -35,7 +35,9 @@ import netspeed
 import remote
 
 HERE = Path(__file__).resolve().parent
-UI_DIR = HERE.parent / "ui"
+UI_DIR = HERE.parent / "web" / "dist"  # the page, built with `npm run build:ui`
+ASSET_TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml",
+               ".woff2": "font/woff2", ".png": "image/png"}
 # Device list, history and seen-devices live outside the code, so rebuilding
 # or moving the project never loses them.
 DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "homebase"
@@ -1359,12 +1361,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send(403, {"error": "forbidden"})
         return True
 
-    def send(self, code, body, ctype="application/json"):
+    def send(self, code, body, ctype="application/json", cache="no-store"):
         data = body if isinstance(body, bytes) else json.dumps(body).encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         self.end_headers()
         self.wfile.write(data)
 
@@ -1372,14 +1374,19 @@ class Handler(BaseHTTPRequestHandler):
         if self.foreign_host():
             return
         if self.path in ("/", "/index.html"):
-            self.send(200, (UI_DIR / "index.html").read_bytes(), "text/html; charset=utf-8")
-        elif self.path.startswith("/vendor/"):
-            name = self.path[len("/vendor/"):]
-            f = UI_DIR / "vendor" / name
-            if "/" in name or not f.is_file():
+            page = UI_DIR / "index.html"
+            if not page.is_file():
+                return self.send(500, b"The page isn't built yet: run `npm install && npm run build:ui`.", "text/plain; charset=utf-8")
+            self.send(200, page.read_bytes(), "text/html; charset=utf-8")
+        elif self.path.startswith("/assets/"):
+            # Built files only: a plain name with a known type, inside dist/assets. Their names change
+            # with their content, so the browser may keep them for good.
+            name = self.path[len("/assets/"):]
+            f = UI_DIR / "assets" / name
+            ctype = ASSET_TYPES.get(Path(name).suffix)
+            if not ctype or not re.fullmatch(r"[A-Za-z0-9_.-]+", name) or ".." in name or not f.is_file():
                 return self.send(404, {"error": "not found"})
-            ctype = "text/css" if name.endswith(".css") else "text/javascript"
-            self.send(200, f.read_bytes(), ctype + "; charset=utf-8")
+            self.send(200, f.read_bytes(), ctype, cache="public, max-age=31536000, immutable")
         elif self.path.startswith("/api/term/") and self.path.endswith("/stream"):
             self.term_stream(self.path.split("/")[3])
         elif self.path == "/api/netspeed":  # polled fast while the internet speed test runs
@@ -1412,7 +1419,7 @@ class Handler(BaseHTTPRequestHandler):
                     "history": {k: list(v) for k, v in state["history"].items()},
                     "agents_enabled": AGENTS_ENABLED,
                     # Changes when the page itself changes, so an open page knows to reload.
-                    "ui": int((UI_DIR / "index.html").stat().st_mtime),
+                    "ui": int((UI_DIR / "index.html").stat().st_mtime) if (UI_DIR / "index.html").exists() else 0,
                     "tv": {k: v for k, v in state["tv"].items() if time.time() - v["t"] < 15},
                     "now": time.time(),
                 }

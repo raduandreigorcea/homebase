@@ -41,19 +41,22 @@ Home networks quietly fill up with things: a PC, a Raspberry Pi, a TV, a laptop 
 Homebase runs on Linux. The background service is plain Python 3 (standard library only); the window is a small [Tauri](https://tauri.app) app.
 
 ```sh
-# 1. The background service, started with your session
+# 1. The page (needs Node.js)
+npm install
+npm run build:ui
+
+# 2. The background service, started with your session
 cp linux/homebase.service ~/.config/systemd/user/   # adjust the path inside if the project isn't in ~/Projects/homebase-app
 systemctl --user enable --now homebase.service
 
-# 2. The app window (needs Rust and Node.js)
-npm install
+# 3. The app window (needs Rust)
 npm run build
 cp src-tauri/target/release/homebase ~/.local/bin/
 cp linux/homebase.desktop ~/.local/share/applications/
 install -Dm644 src-tauri/icons/128x128.png ~/.local/share/icons/hicolor/128x128/apps/homebase.png
 ```
 
-The panel also works in any browser at <http://127.0.0.1:8800>. Optional extras: `ptyxis` for opening SSH in a separate window, Remmina for Remote Desktop to Windows PCs, and `iw` for Wi-Fi signal strength.
+The panel also works in any browser at <http://127.0.0.1:8800>. The page lives in `web/` (Preact and TypeScript); `npm run dev` serves it with live reload against the running service. Optional extras: `ptyxis` for opening SSH in a separate window, Remmina for Remote Desktop to Windows PCs, and `iw` for Wi-Fi signal strength.
 
 ## License
 

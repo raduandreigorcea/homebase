@@ -3,3 +3,4 @@ src-tauri/target/
 build.log
 __pycache__/
 src-tauri/gen/
+web/dist/
