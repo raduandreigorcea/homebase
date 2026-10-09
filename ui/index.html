@@ -92,6 +92,11 @@
   .pill.on { color: var(--text); }
   .pill.on .dot { background: var(--green); box-shadow: 0 0 0 3px rgba(52, 211, 153, .18); }
   .pill.off .dot { background: var(--red); }
+  /* A restart / shutdown in progress. */
+  .pill.pending { color: var(--amber); }
+  .pill.pending .dot { background: var(--amber); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) { .pill.pending .dot { animation: none; } }
   .device.is-off .dev-icon, .device.is-off .facts { opacity: .5; }
 
   .facts { display: flex; flex-wrap: wrap; gap: 8px 28px; }
@@ -230,12 +235,18 @@
   .bat-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .bat-info span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bat-net { margin-left: auto; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+  /* The internet line opens the speed test. */
+  .bat-net { cursor: pointer; border-radius: 8px; padding: 2px 6px; margin-right: -6px; }
+  .bat-net:hover { background: var(--panel-2); color: var(--text); }
   .bat-net svg { width: 18px; height: 18px; flex: none; }
   .bat-net b { color: var(--text); font-weight: 600; }
   .bat-net.off b { color: var(--red); }
   .bat svg { width: 18px; height: 18px; flex: none; }
   .bat b { color: var(--text); font-weight: 600; }
   /* Command palette (press /). */
+  .chart-tip { position: fixed; z-index: 40; pointer-events: none; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 600;
+               background: var(--panel-2); border: 1px solid var(--line); color: var(--text); white-space: nowrap; }
+  .chart-tip[hidden] { display: none; }
   .pal-back { position: fixed; inset: 0; z-index: 20; background: rgba(4, 7, 10, .6); display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; }
   .pal-back[hidden] { display: none; }
   .pal { width: min(620px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .55); }
@@ -272,6 +283,7 @@
   .dv-sec h4 { margin: 0 0 10px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1.3px;
                display: flex; justify-content: space-between; gap: 10px; }
   .dv-sec h4 span { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--dim); }
+  .dv-sec h4 span b { color: var(--text); font-weight: 600; }
   .dv-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
   .dv-tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 12px 8px; min-width: 0; }
   .dv-tile > span { color: var(--muted); font-size: 11px; }
@@ -312,6 +324,26 @@
   .dv-note { color: var(--dim); font-size: 12px; margin: 0; }
   .dv-foot { display: flex; gap: 16px; flex-wrap: wrap; padding: 10px 18px; border-top: 1px solid var(--line); color: var(--dim); font-size: 11px; }
   .dv-foot kbd { font: inherit; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+
+  /* Internet speed test: a gauge with a needle, like speedtest.net. */
+  #st-modal { z-index: 12; }  /* opens from a device's big screen, so it goes on top of it */
+  .st-win { width: min(560px, 100%); }
+  .st-body { padding: 22px 24px 24px; display: grid; gap: 20px; justify-items: center; }
+  .st-gauge { width: 100%; max-width: 380px; display: block; overflow: visible; }
+  .st-gauge .needle { transition: transform .3s ease-out; transform-origin: 190px 190px; }
+  @media (prefers-reduced-motion: reduce) { .st-gauge .needle { transition: none; } }
+  .st-now { text-align: center; margin-top: -54px; }
+  .st-now b { display: block; font-size: 40px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .st-now span { color: var(--muted); font-size: 12px; }
+  .st-res { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+  .st-res div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .st-res span { display: block; color: var(--muted); font-size: 11px; }
+  .st-res b { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .st-res b small { font-size: 11px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+  .st-res .on { border-color: var(--blue); }
+  .st-res .on.up { border-color: var(--violet); }
+  @media (max-width: 520px) { .st-res { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .st-foot { color: var(--dim); font-size: 11px; text-align: center; }
 
   .term-modal { position: fixed; inset: 0; background: rgba(4, 7, 10, .72); display: grid; place-items: center; padding: 24px; z-index: 10; }
   .term-modal[hidden] { display: none; }
@@ -430,6 +462,15 @@
   </div>
 </div>
 <input type="file" id="send-file" multiple hidden>
+<div class="dev-modal" id="st-modal" hidden>
+  <div class="dev-win st-win" role="dialog" aria-modal="true" aria-labelledby="st-title">
+    <div class="dv-head">
+      <div class="dv-who"><h3 id="st-title">Internet speed</h3><p id="st-sub">Measured against Cloudflare's speed test servers</p></div>
+      <span class="dv-tools"><button class="icon-btn" id="st-close" title="Close"></button></span>
+    </div>
+    <div class="st-body" id="st-body"></div>
+  </div>
+</div>
 <div class="dev-modal" id="dev-modal" hidden>
   <div class="dev-win" role="dialog" aria-modal="true" aria-labelledby="dv-name">
     <div class="dv-head">
@@ -527,20 +568,21 @@ function batteryIcon(b) {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="2.5" y="7" width="17" height="10" rx="2.5"/><path d="M21.5 10.5v3" stroke-linecap="round"/><rect x="5" y="9.5" width="${w}" height="5" rx="1" fill="${col}" stroke="none"/>${b.status === 'Charging' ? '<path d="M11.5 8.5l-2 4h3l-2 3" stroke="var(--bg)" stroke-width="1.6" stroke-linecap="round"/>' : ''}</svg>`;
 }
 
-function spark(el, series, max) {
-  const w = el.clientWidth || 300, h = el.clientHeight || 56;
+// Top of a response-time scale: sized to the usual values (90th percentile), so a rare slow reply
+// doesn't flatten the line; it's clipped at the top instead. Same rule on the card and the big chart.
+function latTop(data) {
+  const vals = data.filter(v => v != null).sort((a, b) => a - b);
+  const p90 = vals.length ? vals[Math.floor(vals.length * .9)] : 1;
+  return [25, 50, 100, 200, 500, 1000, 2000, 5000].find(x => x >= p90 * 1.4) || 5000;
+}
+
+// The card's response-time line: the big chart in miniature (no scale, gaps where checks were missed).
+function spark(el, data) {
+  const w = el.clientWidth || 300, h = el.clientHeight || 30, pad = 3;
   el.setAttribute('viewBox', `0 0 ${w} ${h}`);
-  let out = '';
-  for (const { data, col } of series) {
-    if (!data || data.length < 2) continue;
-    const m = max ?? Math.max(1, ...series.flatMap(s => s.data || []));
-    const step = w / (90 - 1), off = w - (data.length - 1) * step;
-    const pts = data.map((v, i) => [off + i * step, h - 3 - ((v ?? 0) / m) * (h - 8)]);
-    const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('');
-    out += `<path d="${line} L${pts.at(-1)[0]} ${h} L${pts[0][0]} ${h}Z" fill="${col}" opacity=".12"/>`;
-    out += `<path d="${line}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round"/>`;
-  }
-  el.innerHTML = out;
+  const top = latTop(data), step = w / 89, off = w - (data.length - 1) * step;
+  el.innerHTML = lineWithFill(segmentsOf(data, (v, i) => [off + i * step, h - pad - Math.min(v, top) / top * (h - 2 * pad)]), h, 'var(--blue)');
+  setHoverValues(el, data);
 }
 
 // A block bouncing along a track, like a terminal progress bar: ▱▱▰▰▰▱▱▱▱
@@ -561,11 +603,17 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   }, 110);
 }
 
+// Restart / shutdown asked for and not done yet: from the server, or set the moment you confirm.
+const powerOf = d => localPower[d.id] || d.power;
+const POWER_TXT = { reboot: 'Restarting…', poweroff: 'Shutting down…' };
+
 function deviceCard(d, st, hist, now, stats, tv, ssh) {
-  const online = st?.online;
-  const checked = st != null && st.online != null;
-  const pillCls = !checked ? '' : online ? 'on' : 'off';
-  const pillTxt = !checked ? 'Checking…' : online ? 'On' : 'Off';
+  const pending = powerOf(d);
+  // While it restarts the card looks like it's being checked (loading bars, buttons off).
+  const online = pending ? null : st?.online;
+  const checked = !pending && st != null && st.online != null;
+  const pillCls = pending ? 'pending' : !checked ? '' : online ? 'on' : 'off';
+  const pillTxt = pending ? POWER_TXT[pending] : !checked ? 'Checking…' : online ? 'On' : 'Off';
   const lat = online ? (st.latency != null ? `${st.latency} ms` : 'on the network') : '–';
   // The agent knows the real boot time; without it we only know when we first saw it on.
   const since = stats?.boot ? dur(now - stats.boot) : online && st.since ? dur(now - st.since) : '–';
@@ -586,10 +634,10 @@ function deviceCard(d, st, hist, now, stats, tv, ssh) {
     ? `<button class="primary" data-act="terminal" ${online ? '' : 'disabled'}>${ICONS.terminal} Open terminal</button>`
     : '';
   // Waking only makes sense when it's off, so the button only shows then.
-  const wakeBtn = d.has_wake && st?.online === false ? `<button data-act="wake">${ICONS.power} Wake it up</button>` : '';
+  const wakeBtn = d.has_wake && !pending && st?.online === false ? `<button data-act="wake">${ICONS.power} Wake it up</button>` : '';
   // Response time is mostly noise; it only earns a (quiet) line when the device is up.
   const latLine = online && d.probe_port && !tv;
-  const latSpark = latLine ? `<svg class="spark" id="lat-${esc(d.id)}" preserveAspectRatio="none" aria-label="Response time, last 3 minutes"></svg>` : '';
+  const latSpark = latLine ? `<svg class="spark" id="lat-${esc(d.id)}" preserveAspectRatio="none" aria-label="Response time, last 3 minutes" data-label="Response" data-unit=" ms" data-align="right"></svg>` : '';
   return `
   <section class="card device ${checked && !online ? 'is-off' : ''}" data-id="${esc(d.id)}">
     <div class="dev-head">
@@ -812,6 +860,24 @@ function renderInternet(s) {
 const NET_POINTS = 90;
 const NET_INSET = 7;  // keeps the 4px end dot (+2px ring) inside the drawing on every side
 
+// Every response-time chart is drawn the same way: a blue line with a light fill under it,
+// broken where a check was missed. segments: arrays of [x, y]; base: the y of the bottom edge.
+function lineWithFill(segments, base, col) {
+  let out = '';
+  for (const seg of segments.filter(sg => sg.length)) {
+    const d = seg.map(([x, y], i) => (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1)).join('');
+    out += `<path d="${d} L${seg.at(-1)[0].toFixed(1)} ${base} L${seg[0][0].toFixed(1)} ${base}Z" fill="${col}" opacity=".12"/>`;
+    out += `<path d="${d}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+  return out;
+}
+// Splits a series into runs without gaps, as points. xy(v, i) gives a point.
+function segmentsOf(data, xy) {
+  const segs = [[]];
+  data.forEach((v, i) => { if (v == null) { if (segs.at(-1).length) segs.push([]); } else segs.at(-1).push(xy(v, i)); });
+  return segs;
+}
+
 function drawNetChart(svg, data, ok) {
   const w = svg.clientWidth || 300, h = svg.clientHeight || 38;
   svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
@@ -823,7 +889,7 @@ function drawNetChart(svg, data, ok) {
   const pad = NET_INSET, right = w - NET_INSET;
   const step = (right - pad) / (NET_POINTS - 1), off = right - (data.length - 1) * step;
   const y = v => h - pad - Math.min(v, top) / top * (h - 2 * pad);
-  const col = ok ? 'var(--green)' : 'var(--red)';
+  const col = ok ? 'var(--blue)' : 'var(--red)';  // blue: a response time, like every other one
   let out = '';
   // Until the history fills up (after a restart or standby), the empty left part
   // is a faint dotted line at the first known level, so the chart always spans the bar.
@@ -834,16 +900,9 @@ function drawNetChart(svg, data, ok) {
     out += `<line x1="${pad}" x2="${startX.toFixed(1)}" y1="${fy.toFixed(1)}" y2="${fy.toFixed(1)}" stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round"/>`;
   }
   // Missed checks (null) break the line instead of being drawn as 0.
-  let path = '', pen = false, lastPt = null;
-  data.forEach((v, i) => {
-    if (v == null) { pen = false; return; }
-    const pt = [off + i * step, y(v)];
-    path += (pen ? 'L' : 'M') + pt[0].toFixed(1) + ' ' + pt[1].toFixed(1);
-    pen = true; lastPt = pt;
-  });
-  if (path) {
-    out += `<path d="${path}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-  }
+  const segs = segmentsOf(data, (v, i) => [off + i * step, y(v)]);
+  const lastPt = segs.filter(sg => sg.length).at(-1)?.at(-1) || null;
+  out += lineWithFill(segs, h - pad, col);
   if (netHover != null && data[netHover] != null) {
     const hx = off + netHover * step;
     const tx = hx > w - 60 ? hx - 8 : hx + 8, anchor = hx > w - 60 ? 'end' : 'start';
@@ -879,6 +938,10 @@ function render(s) {
     termPreloaded = true;
     setTimeout(() => loadTerminalLib().catch(() => {}), 3000);
   }
+  // Homebase was updated: reload, unless something is open (terminal, dialog, palette, a device screen).
+  window.uiVersion ??= s.ui;
+  if (s.ui && s.ui !== window.uiVersion && $('term-modal').hidden && !document.querySelector('.dlg-back')
+      && $('pal').hidden && !detailId && $('st-modal').hidden) return location.reload();
   const nb = s.netbook || {};
   const h = s.history || {};
 
@@ -898,10 +961,8 @@ function render(s) {
   const dhtml = discoveredCard(s.discovered || [], s.last_scan, s.now);
   if (disc.dataset.html !== dhtml && !disc.contains(document.activeElement) && !disc.querySelector('.busy')) { disc.innerHTML = dhtml; disc.dataset.html = dhtml; }
   for (const d of s.devices) {
-    const ce = $('cpu-' + d.id);
-    if (ce) spark(ce, [{ data: h['cpu:' + d.id], col: 'var(--green)' }], 100);
     const el = $('lat-' + d.id);
-    if (el) spark(el, [{ data: h['lat:' + d.id], col: 'var(--dim)' }]);
+    if (el) spark(el, h['lat:' + d.id] || []);
   }
 
   renderDetail(s);
@@ -1527,7 +1588,20 @@ async function doAction(act, d) {
       title: `${reboot ? 'Restart' : 'Shut down'} ${name}?`, icon: 'power', danger: !reboot, ok: reboot ? 'Restart' : 'Shut down',
       text: reboot ? 'It\'s back on the network in 1–2 minutes.' : 'To turn it back on, someone has to press its power button (or unplug it and plug it back in).',
     });
-    if (go) openTerminal(d, act);
+    if (!go) return;
+    // In the background: no terminal for a restart. Only if sudo wants a password does the terminal open.
+    // The card shows it right away; the server then keeps showing it until the device is back (or off).
+    localPower[d.id] = act;
+    if (last) { render(last); renderDetail(); }
+    let j;
+    try {
+      j = await (await fetch(`/api/power/${encodeURIComponent(d.id)}`, { method: 'POST', body: JSON.stringify({ action: act }) })).json();
+    } catch {}
+    delete localPower[d.id];
+    if (!j?.ok && last) { render(last); renderDetail(); }
+    if (j?.ok) { toast(reboot ? `${name} is restarting. It\'s back in 1–2 minutes.` : `${name} is shutting down.`, 'ok'); poll(); }
+    else if (j?.password) { toast(`${name} wants a password for this; type it in the terminal.`, 'info'); openTerminal(d, act); }
+    else toast(`Couldn\'t ${reboot ? 'restart' : 'shut down'} ${name}`, 'err');
     return;
   }
   if (act === 'speed') return speedTest(d);
@@ -1542,20 +1616,13 @@ async function doAction(act, d) {
   }
 }
 
+const localPower = {};  // device id -> 'reboot' | 'poweroff', between your confirm and the server's answer
+
 // Last speed test per device, shown in its big screen (not on the card: it's not live).
 const speeds = {};
 
-async function speedTest(d) {
-  if (speeds[d.id]?.running) return;
-  speeds[d.id] = { running: true };
-  if (detailId !== d.id) toast(`Measuring the speed to ${d.name}… (~8 seconds)`, 'info');
-  renderDetail();
-  let j;
-  try { j = await (await fetch(`/api/speed/${encodeURIComponent(d.id)}`, { method: 'POST' })).json(); } catch {}
-  const fmt = v => v == null ? '–' : v >= 100 ? String(Math.round(v)) : v.toFixed(1).replace('.', ',');
-  speeds[d.id] = j?.ok ? { down: fmt(j.down), up: fmt(j.up), t: Date.now() } : { failed: true, t: Date.now() };
-  if (detailId !== d.id) toast(j?.ok ? `${d.name}: ↓ ${fmt(j.down)} · ↑ ${fmt(j.up)} Mbit/s` : `Couldn't measure the speed to ${d.name}`, j?.ok ? 'ok' : 'err');
-  renderDetail();
+function speedTest(d) {
+  openSpeedtest(d, true);  // the same gauge window as the internet test, for this device
 }
 
 // --- Sending files: "send <device>" in the palette, or drop files on a card ---
@@ -1635,9 +1702,17 @@ const norm = t => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 let palItems = [], palSel = 0;
 
 function paletteCommands() {
-  const out = [{ text: 'scan', desc: 'Look for new devices', run: () => fetch('/api/scan', { method: 'POST' }).then(() => toast('Searching the network…', 'info')) }];
+  const out = [{ text: 'scan', desc: 'Look for new devices', run: () => fetch('/api/scan', { method: 'POST' }).then(() => toast('Searching the network…', 'info')) },
+               { text: 'speedtest', desc: 'Test your internet speed', run: openSpeedtest }];
   for (const d of last?.devices || []) {
-    for (const [act, label, cmd] of deviceActions(d)) out.push({ text: `${cmd} ${d.name}`, desc: label.replace('…', ''), run: () => doAction(act, d) });
+    // Only what makes sense right now: an off device can only be woken (or edited), an on one isn't woken.
+    // While it's being checked (or restarting) everything stays, as its state isn't known yet.
+    // A restart / shutdown in progress blocks everything else, or a second command gets lost on the way down.
+    const on = last.status[d.id]?.online;
+    const fits = act => powerOf(d) ? false : on === false ? act === 'wake' : on === true ? act !== 'wake' : true;
+    for (const [act, label, cmd] of deviceActions(d)) {
+      if (fits(act)) out.push({ text: `${cmd} ${d.name}`, desc: label.replace('…', ''), run: () => doAction(act, d) });
+    }
     out.push({ text: `edit ${d.name}`, desc: 'Settings', run: () => doAction('edit', d) });
   }
   return out;
@@ -1741,12 +1816,14 @@ const evTime = t => {
 };
 
 // A small filled line for a tile: [values], colour, top of the scale.
-function miniSpark(data, col, top) {
+// base: where the scale starts (temperature is drawn from 25°, so small changes show).
+function miniSpark(data, col, top, label = '', unit = '', base = 0) {
   const v = (data || []).filter(x => x != null);
   if (v.length < 2) return '<svg aria-hidden="true"></svg>';
   const w = 200, h = 26, step = w / (v.length - 1);
-  const d = v.map((x, i) => (i ? 'L' : 'M') + (i * step).toFixed(1) + ' ' + (h - 2 - Math.min(x, top) / top * (h - 4)).toFixed(1)).join('');
-  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><path d="${d} L${w} ${h} L0 ${h}Z" fill="${col}" opacity=".12"/>` +
+  const d = v.map((x, i) => (i ? 'L' : 'M') + (i * step).toFixed(1) + ' ' + (h - 2 - Math.max(0, Math.min(x - base, top)) / top * (h - 4)).toFixed(1)).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true" data-label="${esc(label)}" data-unit="${esc(unit)}" data-values="${v.map(x => Math.round(x * 10) / 10).join(',')}">` +
+         `<path d="${d} L${w} ${h} L0 ${h}Z" fill="${col}" opacity=".12"/>` +
          `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
@@ -1754,9 +1831,7 @@ function miniSpark(data, col, top) {
 function bigLatChart(svg, data) {
   const w = svg.clientWidth || 600, h = svg.clientHeight || 150, N = 90;
   svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-  const vals = data.filter(v => v != null).sort((a, b) => a - b);
-  const p90 = vals.length ? vals[Math.floor(vals.length * .9)] : 1;
-  const top = [25, 50, 100, 200, 500, 1000, 2000, 5000].find(x => x >= p90 * 1.4) || 5000;
+  const top = latTop(data);
   const step = w / (N - 1), off = w - (data.length - 1) * step, pad = 3;
   const y = v => h - pad - Math.min(v, top) / top * (h - 2 * pad);
   let out = '';
@@ -1768,15 +1843,12 @@ function bigLatChart(svg, data) {
   const first = data.findIndex(v => v != null);
   const startX = first < 0 ? w : off + first * step;
   if (startX > 4) out += `<line x1="0" x2="${startX.toFixed(1)}" y1="${h - pad}" y2="${h - pad}" stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="2 5"/>`;
-  let path = '', pen = false;
+  out += lineWithFill(segmentsOf(data, (v, i) => [off + i * step, y(v)]), h - pad, 'var(--blue)');
   data.forEach((v, i) => {
-    if (v == null) { pen = false; return; }
-    path += (pen ? 'L' : 'M') + (off + i * step).toFixed(1) + ' ' + y(v).toFixed(1);
-    pen = true;
-    if (v > top) out += `<text x="${(off + i * step).toFixed(1)}" y="10" text-anchor="middle" fill="var(--amber)" font-size="10">↑${Math.round(v)}</text>`;
+    if (v != null && v > top) out += `<text x="${(off + i * step).toFixed(1)}" y="10" text-anchor="middle" fill="var(--amber)" font-size="10">↑${Math.round(v)}</text>`;
   });
-  if (path) out += `<path d="${path}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round"/>`;
   svg.innerHTML = out;
+  setHoverValues(svg, data);
 }
 
 function detailMain(d, st, s) {
@@ -1787,22 +1859,17 @@ function detailMain(d, st, s) {
   const tile = (label, value, unit, spark = '') =>
     `<div class="dv-tile"><span>${label}</span><b>${value}${value === '–' ? '' : `<small>${unit}</small>`}</b>${spark}</div>`;
   const tiles = [];
-  if (d.probe_port) {
-    // Scale to the usual values, like the big chart, so one slow reply doesn't flatten the line.
-    const recent = lat.slice(-30), sorted = [...recent].sort((a, b) => a - b);
-    const top = Math.max(25, (sorted[Math.floor(sorted.length * .9)] || 0) * 1.4);
-    tiles.push(tile('Response', online && st.latency != null ? Math.round(st.latency) : '–', 'ms', miniSpark(recent, 'var(--blue)', top)));
-  }
   if (ssh) {
-    tiles.push(tile('CPU', ssh.cpu == null ? '…' : Math.round(ssh.cpu), '%', miniSpark(h['cpu:' + d.id], color(ssh.cpu ?? 0), 100)));
-    if (ssh.temp != null) tiles.push(tile('Temp', Math.round(ssh.temp), '°', miniSpark((h['temp:' + d.id] || []).map(v => v - 25), color(ssh.temp, 65, 80), 60)));
-    if (ssh.gpu != null) tiles.push(tile('GPU', Math.round(ssh.gpu), '%', miniSpark(h['gpu:' + d.id], color(ssh.gpu), 100)));
+    tiles.push(tile('CPU', ssh.cpu == null ? '…' : Math.round(ssh.cpu), '%', miniSpark(h['cpu:' + d.id], color(ssh.cpu ?? 0), 100, 'CPU', '%')));
+    if (ssh.temp != null) tiles.push(tile('Temp', Math.round(ssh.temp), '°', miniSpark(h['temp:' + d.id], color(ssh.temp, 65, 80), 60, 'Temp', '°', 25)));
+    if (ssh.gpu != null) tiles.push(tile('GPU', Math.round(ssh.gpu), '%', miniSpark(h['gpu:' + d.id], color(ssh.gpu), 100, 'GPU', '%')));
     const ram = 100 * (1 - ssh.mem_free / ssh.mem_total);
-    tiles.push(tile('RAM', Math.round(ram), '%', miniSpark(h['ram:' + d.id], color(ram, 75, 90), 100)));
+    tiles.push(tile('RAM', Math.round(ram), '%', miniSpark(h['ram:' + d.id], color(ram, 75, 90), 100, 'RAM', '%')));
   }
-  const latInfo = lat.length ? `min ${Math.round(Math.min(...lat))} · avg ${Math.round(lat.reduce((a, b) => a + b, 0) / lat.length)} · last 3 min` : 'last 3 min';
+  const now = online && st.latency != null ? `<b>${Math.round(st.latency)} ms now</b> · ` : '';
+  const latInfo = now + (lat.length ? `min ${Math.round(Math.min(...lat))} · avg ${Math.round(lat.reduce((a, b) => a + b, 0) / lat.length)} · last 3 min` : 'last 3 min');
   const latSec = d.probe_port ? `<div class="dv-sec"><h4>Response time <span>${latInfo}</span></h4>
-      <div class="dv-chart"><svg id="dv-lat" preserveAspectRatio="none" aria-label="Response time, last 3 minutes"></svg></div></div>` : '';
+      <div class="dv-chart"><svg id="dv-lat" preserveAspectRatio="none" aria-label="Response time, last 3 minutes" data-label="Response" data-unit=" ms" data-align="right"></svg></div></div>` : '';
   let sys = '';
   if (ssh) {
     const diskUsed = ssh.disk_total - ssh.disk_free, memUsed = ssh.mem_total - ssh.mem_free;
@@ -1824,11 +1891,11 @@ function detailMain(d, st, s) {
       ${d.recent.map(e => `<div class="${esc(e.kind)}"><time>${evTime(e.t)}</time><i></i><span>${esc(strip(e.text))}</span></div>`).join('')}
     </div></div>` : '';
   const state = !checked ? '<p class="dv-note">Checking…</p>' : !online ? '<p class="dv-note">The device is off or not on the network.</p>' : '';
-  return `<div class="dv-tiles">${tiles.join('')}</div>${state}${latSec}${sys}${log}`;
+  return `${tiles.length ? `<div class="dv-tiles">${tiles.join('')}</div>` : ''}${state}${latSec}${sys}${log}`;
 }
 
 function detailSide(d, st, s = last) {
-  const online = st?.online;
+  const online = powerOf(d) ? false : st?.online;  // restarting / shutting down: commands are off
   if (d.dlna) {
     // A TV: its playback and volume controls (same as on its card), wrapped so the handlers find the device.
     const tv = s?.tv?.[d.id];
@@ -1837,7 +1904,7 @@ function detailSide(d, st, s = last) {
   }
   const short = d.name;
   // Waking only makes sense when it's off (same as on the card).
-  const acts = deviceActions(d).filter(([a]) => !['send', 'speed'].includes(a) && !(a === 'wake' && online));
+  const acts = deviceActions(d).filter(([a]) => !['send', 'speed'].includes(a) && !(a === 'wake' && (online || powerOf(d))));
   const cmds = acts.length ? `<div class="dv-sec"><h4>Commands</h4><div class="dv-cmds">
       ${acts.map(([a, label, cmd]) => `<button class="dv-cmd ${a === 'poweroff' ? 'danger-item' : ''}" data-dv="${a}" ${online || ['wake', 'key'].includes(a) ? '' : 'disabled'}>
         <span class="p">$</span><code>${cmd} <em>${esc(short)}</em></code><span>${label.replace('…', '').toLowerCase()}</span></button>`).join('')}
@@ -1849,12 +1916,10 @@ function detailSide(d, st, s = last) {
                        : 'or click · find them on the PC in Remote Desktop › This PC › the folder shared by the laptop'}</small>
       </div></div>` : '';
   const sp = speeds[d.id];
-  const speed = d.key ? `<div class="dv-sec"><h4>Speed to it <span>${sp?.t && !sp.running ? ago(sp.t) : ''}</span></h4><div class="dv-speed">
-      ${sp?.running ? '<p class="dv-note"><span class="spin" style="width:12px;height:12px;display:inline-block;vertical-align:-2px"></span> Measuring… ~8 s</p>'
-        : sp?.failed ? '<p class="dv-note">Couldn\'t measure it.</p>'
-        : sp ? `<div class="nums"><div><b>${sp.down}</b><span>↓ download Mbit/s</span></div><div><b>${sp.up}</b><span>↑ upload Mbit/s</span></div></div>`
+  const speed = d.key ? `<div class="dv-sec"><h4>Speed to it <span>${sp?.t ? ago(sp.t) : ''}</span></h4><div class="dv-speed">
+      ${ sp ? `<div class="nums"><div><b>${sp.down}</b><span>↓ download Mbit/s</span></div><div><b>${sp.up}</b><span>↑ upload Mbit/s</span></div></div>`
         : '<p class="dv-note">How fast data moves between this laptop and it, over Wi-Fi.</p>'}
-      <button data-dv="speed" ${online && !sp?.running ? '' : 'disabled'}>${sp && !sp.running ? 'Measure again' : 'Measure'}</button>
+      <button data-dv="speed" ${online ? '' : 'disabled'}>${sp ? 'Measure again' : 'Measure'}</button>
     </div></div>` : '';
   const hint = d.ssh && !d.key ? '<p class="dv-note">Type the SSH password in ✎ to get stats, files and a speed test here.</p>'
     : !d.ssh && d.kind !== 'tv' && !d.windows ? '<p class="dv-note">Set an SSH user and password in ✎ to control it from here.</p>' : '';
@@ -1865,7 +1930,8 @@ function renderDetail(s = last) {
   if (!detailId || !s) return;
   const d = s.devices.find(x => x.id === detailId);
   if (!d) return closeDetail();
-  const st = s.status[d.id], online = st?.online, checked = st != null && st.online != null;
+  const pending = powerOf(d);
+  const st = s.status[d.id], online = pending ? null : st?.online, checked = !pending && st != null && st.online != null;
   const ssh = online ? (s.sshstats?.[d.id] || s.stats?.[d.id]) : null;
   const put = (id, html, guard = false) => {
     const el = $(id);
@@ -1874,8 +1940,8 @@ function renderDetail(s = last) {
   put('dv-icon', ICONS[d.kind] || ICONS.other);
   const sub = [d.os ? `<span class="os-tag">${esc(d.os.replace(' (DLNA)', ''))}</span>` : '', ssh?.model ? esc(ssh.model.replace(/ Rev [\d.]+$/, '')) : '',
                esc(d.host), d.ssh_user && d.kind !== 'tv' ? `${esc(d.ssh_user)}@` : ''].filter(Boolean).join(' · ');
-  put('dv-who', `<h3><span id="dv-name">${esc(d.name)}</span><span class="pill ${!checked ? '' : online ? 'on' : 'off'}"><span class="dot"></span>${
-      !checked ? 'Checking…' : online ? `On${st.since ? ` <small>· for ${dur(s.now - st.since)}</small>` : ''}` : 'Off'}</span></h3><p>${sub}</p>`);
+  put('dv-who', `<h3><span id="dv-name">${esc(d.name)}</span><span class="pill ${pending ? 'pending' : !checked ? '' : online ? 'on' : 'off'}"><span class="dot"></span>${
+      pending ? POWER_TXT[pending] : !checked ? 'Checking…' : online ? `On${st.since ? ` <small>· for ${dur(s.now - st.since)}</small>` : ''}` : 'Off'}</span></h3><p>${sub}</p>`);
   put('dv-main', detailMain(d, st, s));
   put('dv-side', detailSide(d, st, s), $('dv-side').querySelector('.busy, .drop') || pointerHeld);
   if ($('dv-lat')) bigLatChart($('dv-lat'), (s.history || {})['lat:' + d.id] || []);
@@ -1888,7 +1954,8 @@ $('dv-close').addEventListener('click', closeDetail);
 $('dv-edit').addEventListener('click', () => editDevice(last.devices.find(d => d.id === detailId)));
 $('dev-modal').addEventListener('click', e => { if (e.target === $('dev-modal')) closeDetail(); });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && detailId && $('term-modal').hidden && !document.querySelector('.dlg-back') && $('pal').hidden) closeDetail();
+  if (e.key === 'Escape' && detailId && $('term-modal').hidden && !document.querySelector('.dlg-back') && $('pal').hidden
+      && $('st-modal').hidden) closeDetail();
 });
 addEventListener('resize', () => { if (detailId && $('dv-lat')) bigLatChart($('dv-lat'), (last.history || {})['lat:' + detailId] || []); });
 $('dv-side').addEventListener('pointerdown', () => { pointerHeld = true; });
@@ -1917,6 +1984,171 @@ $('dv-side').addEventListener('drop', e => {
   zone.classList.remove('drop');
   if (e.dataTransfer.files.length) sendFiles(last.devices.find(x => x.id === detailId), [...e.dataTransfer.files]);
 });
+
+// --- Hovering a chart shows the value under the pointer ----------------------
+// Charts carry their values (data-values) and what they measure (data-label, data-unit).
+// data-align="right": the series sits at the right of a 90-sample axis and fills it as it grows.
+function setHoverValues(svg, data) {
+  svg.dataset.values = data.map(v => v == null ? '' : Math.round(v * 10) / 10).join(',');
+}
+const chartTip = document.createElement('div');
+chartTip.className = 'chart-tip';
+chartTip.hidden = true;
+document.body.appendChild(chartTip);
+document.addEventListener('mousemove', e => {
+  const svg = e.target.closest?.('svg[data-values]');
+  if (!svg || !svg.dataset.values) return void (chartTip.hidden = true);
+  const vals = svg.dataset.values.split(',').map(v => v === '' ? null : +v);
+  const r = svg.getBoundingClientRect();
+  let i;
+  if (svg.dataset.align === 'right') {
+    const step = r.width / 89, off = r.width - (vals.length - 1) * step;
+    i = Math.round((e.clientX - r.left - off) / step);
+  } else {
+    i = Math.round((e.clientX - r.left) / r.width * (vals.length - 1));
+  }
+  if (!(i >= 0 && i < vals.length) || vals[i] == null) return void (chartTip.hidden = true);
+  chartTip.textContent = `${svg.dataset.label}: ${Math.round(vals[i])}${svg.dataset.unit || ''}`;
+  chartTip.style.left = Math.min(e.clientX + 12, innerWidth - 120) + 'px';
+  chartTip.style.top = (e.clientY - 30) + 'px';
+  chartTip.hidden = false;
+});
+
+// --- Internet speed test (like speedtest.net) ---------------------------------
+// The server measures (ping, then download, then upload against Cloudflare); this polls it four
+// times a second while it runs and moves a needle on a gauge.
+
+// Gauge scale: speeds people actually have, spread evenly (0 · 5 · 10 · 50 · 100 · 250 · 500 · 1000 Mbit/s).
+const ST_TICKS = [0, 5, 10, 50, 100, 250, 500, 1000];
+const ST_SWEEP = 240;  // degrees, from -120 (0) to +120 (1000)
+function stAngle(v) {
+  v = Math.max(0, Math.min(1000, v || 0));
+  const i = Math.max(0, ST_TICKS.findIndex(t => t >= v) - 1);
+  const [a, b] = [ST_TICKS[i], ST_TICKS[i + 1] ?? 1000];
+  const part = b > a ? (v - a) / (b - a) : 0;
+  return -ST_SWEEP / 2 + (i + part) * ST_SWEEP / (ST_TICKS.length - 1);
+}
+function stPoint(deg, r) {
+  const rad = (deg - 90) * Math.PI / 180;
+  return [190 + r * Math.cos(rad), 190 + r * Math.sin(rad)];
+}
+function stArc(fromDeg, toDeg, r) {
+  const [x1, y1] = stPoint(fromDeg, r), [x2, y2] = stPoint(toDeg, r);
+  return `M${x1.toFixed(1)} ${y1.toFixed(1)} A${r} ${r} 0 ${toDeg - fromDeg > 180 ? 1 : 0} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+}
+
+let stTimer = null, stLast = {};
+let stDevice = null;  // null: the internet test; a device: the speed between this laptop and it
+const stRunning = st => ['ping', 'download', 'upload'].includes(st.phase);
+const stUrl = () => stDevice ? '/api/devspeed' : '/api/netspeed';
+
+function stGauge(st) {
+  const value = st.phase === 'download' || st.phase === 'upload' ? st.live : st.phase === 'done' ? st.down : 0;
+  const col = st.phase === 'upload' ? 'var(--violet)' : 'var(--blue)';
+  const deg = stAngle(value);
+  const ticks = ST_TICKS.map((t, i) => {
+    const a = -ST_SWEEP / 2 + i * ST_SWEEP / (ST_TICKS.length - 1);
+    const [x, y] = stPoint(a, 132);
+    return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" fill="var(--dim)" font-size="12">${t}</text>`;
+  }).join('');
+  const [nx, ny] = stPoint(0, 118);
+  return `<svg class="st-gauge" viewBox="0 0 380 240" aria-hidden="true">
+      <path d="${stArc(-120, 120, 160)}" fill="none" stroke="var(--panel-2)" stroke-width="18" stroke-linecap="round"/>
+      ${value > 0 ? `<path d="${stArc(-120, deg, 160)}" fill="none" stroke="${col}" stroke-width="18" stroke-linecap="round"/>` : ''}
+      ${ticks}
+      <g class="needle" style="transform: rotate(${deg}deg)">
+        <line x1="190" y1="190" x2="${nx}" y2="${ny}" stroke="var(--text)" stroke-width="3" stroke-linecap="round"/>
+      </g>
+      <circle cx="190" cy="190" r="7" fill="var(--text)"/>
+    </svg>`;
+}
+
+function renderSpeedtest(st) {
+  // The device test is shared: a result for another device doesn't belong in this window.
+  if (stDevice && st.dev && st.dev !== stDevice.id) st = { phase: 'idle' };
+  stLast = st;
+  const running = stRunning(st);
+  const fmt = v => v == null ? '–' : v >= 100 ? Math.round(v) : v.toFixed(1);
+  const big = st.phase === 'ping' ? '…' : running ? fmt(st.live) : st.phase === 'done' ? fmt(st.down) : '–';
+  const label = { ping: 'Measuring ping…', download: 'Download · Mbit/s', upload: 'Upload · Mbit/s', done: 'Download · Mbit/s', error: st.error }[st.phase]
+    || (stDevice ? `Press Start to measure the speed to ${stDevice.name}` : 'Press Start to measure your internet');
+  const cell = (cls, name, v, unit) => `<div class="${cls}"><span>${name}</span><b>${v}<small>${unit}</small></b></div>`;
+  // The needle element is kept between updates so it glides instead of jumping.
+  const body = $('st-body');
+  if (!body.querySelector('.st-gauge')) body.innerHTML = '<div class="st-g"></div><div class="st-now"></div><div class="st-res"></div><button class="primary" id="st-go"></button><div class="st-foot"></div>';
+  const g = body.querySelector('.st-g'), fresh = stGauge(st);
+  const needle = g.querySelector('.needle');
+  if (needle) {
+    // Swap the arc and ticks but keep the needle element itself, so it glides to its new angle.
+    const tmp = document.createElement('div');
+    tmp.innerHTML = fresh;
+    const svg = g.querySelector('svg');
+    svg.querySelectorAll(':scope > :not(.needle)').forEach(n => n.remove());
+    const parts = [...tmp.querySelector('svg').children];
+    for (const n of parts) if (!n.classList.contains('needle')) svg.insertBefore(n, needle);
+    svg.append(svg.querySelector('circle'));  // the hub stays on top of the needle
+    needle.style.transform = parts.find(n => n.classList.contains('needle')).style.transform;
+  } else g.innerHTML = fresh;
+  body.querySelector('.st-now').innerHTML = `<b>${big}</b><span>${esc(label)}</span>`;
+  body.querySelector('.st-res').innerHTML =
+    cell(st.phase === 'ping' ? 'on' : '', stDevice ? 'Response' : 'Ping', st.ping != null ? Math.round(st.ping) : '–', 'ms') +
+    (stDevice ? '' : cell('', 'Jitter', st.jitter != null ? Math.round(st.jitter) : '–', 'ms')) +
+    cell(st.phase === 'download' ? 'on' : '', '↓ Download', st.down != null ? fmt(st.down) : st.phase === 'download' ? fmt(st.live) : '–', 'Mbit/s') +
+    cell(st.phase === 'upload' ? 'on up' : '', '↑ Upload', st.up != null ? fmt(st.up) : st.phase === 'upload' ? fmt(st.live) : '–', 'Mbit/s');
+  const go = body.querySelector('#st-go');
+  go.disabled = running;
+  go.textContent = running ? 'Measuring…' : st.phase === 'done' || st.phase === 'error' ? 'Run again' : 'Start';
+  const when = st.phase === 'done' && st.finished ? `Measured ${new Date(st.finished * 1000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. ` : '';
+  body.querySelector('.st-foot').textContent = stDevice
+    ? when + 'Data goes over SSH, so a slow device (like a Pi Zero) can be the limit rather than your Wi-Fi.'
+    : when || 'Uses about as much data as a speedtest.net run.';
+  $('st-sub').textContent = stDevice ? 'Between this laptop and it, over your home network'
+    : `Measured against Cloudflare's speed test servers${st.server ? ' in ' + st.server : ''}`;
+  // Keep the last result for the device's big screen.
+  if (stDevice && st.phase === 'done') {
+    const f = v => v == null ? '–' : v >= 100 ? String(Math.round(v)) : v.toFixed(1);
+    speeds[stDevice.id] = { down: f(st.down), up: f(st.up), t: st.finished * 1000 };
+  }
+}
+
+async function pollSpeedtest() {
+  let st;
+  try { st = await (await fetch(stUrl())).json(); } catch { return; }
+  if (!$('st-modal').hidden) renderSpeedtest(st);
+  if (!stRunning(st)) { clearInterval(stTimer); stTimer = null; renderDetail(); }
+}
+function watchSpeedtest() {
+  if (!stTimer) stTimer = setInterval(pollSpeedtest, 250);
+}
+// device: null for the internet test. start: begin right away (the device screen's Measure button).
+async function openSpeedtest(device = null, start = false) {
+  stDevice = device || null;
+  $('st-title').textContent = device ? `Speed to ${device.name}` : 'Internet speed';
+  $('st-modal').hidden = false;
+  $('st-body').innerHTML = '';
+  if (start) return startSpeedtest();
+  await pollSpeedtest();
+  if (stRunning(stLast)) watchSpeedtest();
+}
+async function startSpeedtest() {
+  const url = stDevice ? `/api/speed/${encodeURIComponent(stDevice.id)}` : '/api/netspeed';
+  let j;
+  try { j = await (await fetch(url, { method: 'POST' })).json(); } catch {}
+  if (!j?.ok) return renderSpeedtest({ phase: 'error', error: stDevice ? `${stDevice.name} isn't reachable over SSH right now` : 'The server isn\'t responding' });
+  renderSpeedtest({ phase: stDevice ? 'download' : 'ping', dev: stDevice?.id, live: 0 });
+  watchSpeedtest();
+}
+function closeSpeedtest() { $('st-modal').hidden = true; }
+
+$('st-close').innerHTML = ICONS.x;
+$('st-close').addEventListener('click', closeSpeedtest);
+$('st-modal').addEventListener('click', e => {
+  if (e.target === $('st-modal')) closeSpeedtest();
+  if (e.target.id === 'st-go') startSpeedtest();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('st-modal').hidden) closeSpeedtest(); });
+$('net-ms').title = 'Test your internet speed';
+$('net-ms').addEventListener('click', openSpeedtest);
 </script>
 </body>
 </html>

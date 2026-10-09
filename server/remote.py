@@ -8,8 +8,11 @@ redo the SSH handshake on this slow CPU. Callers pass an already-validated
 """
 import base64
 import os
+import re
+import select
 import shlex
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -46,8 +49,10 @@ def ssh_args(interactive=False):
     if KEY.exists():
         args += ["-i", str(KEY)]
     if not interactive:
-        args += ["-o", "BatchMode=yes", "-o", "ControlMaster=auto",
-                 "-o", f"ControlPath={CONTROL}/%C", "-o", "ControlPersist=120"]
+        # Keepalives: a connection that died silently (the device restarted, Wi-Fi changed) is dropped
+        # in ~30 s instead of hanging every command that shares it, forever.
+        args += ["-o", "BatchMode=yes", "-o", "ControlMaster=auto", "-o", f"ControlPath={CONTROL}/%C",
+                 "-o", "ControlPersist=120", "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=3"]
     return args
 
 
@@ -177,6 +182,48 @@ ACTIONS = {
 }
 
 
+# Lets this one user restart and shut down without a password, and nothing else. Written to a temp
+# file and checked with visudo first: a broken sudoers file could lock sudo out entirely.
+SUDOERS_RULE = ("f=/etc/sudoers.d/homebase-power; "
+                "echo '__USER__ ALL=(root) NOPASSWD: /usr/sbin/reboot, /usr/sbin/poweroff, /sbin/reboot, /sbin/poweroff' > $f.tmp && "
+                "chmod 440 $f.tmp && visudo -cqf $f.tmp && mv $f.tmp $f || rm -f $f.tmp")
+
+
+def allow_power(target, user, password):
+    """Using the password once (it goes to sudo on stdin, never on a command line), let the user
+    restart and shut down without one, so Homebase can do it without opening a terminal."""
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]{0,31}", user or ""):
+        return False
+    cmd = "sudo -S -p '' sh -c " + shlex.quote(SUDOERS_RULE.replace("__USER__", user)) + " && sudo -n -l /usr/sbin/reboot >/dev/null && echo POWER_OK"
+    try:
+        r = subprocess.run(["ssh", *ssh_args(), "--", target, cmd], input=password + "\n",
+                           capture_output=True, text=True, errors="replace", timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return "POWER_OK" in r.stdout
+
+
+def power(target, windows, action):
+    """Restart or shut down without a terminal. "ok", "password" (sudo wants one: use the terminal
+    instead) or "error". The connection drops as the device goes down, so that counts as success."""
+    if windows:
+        cmd = {"reboot": "shutdown /r /t 0", "poweroff": "shutdown /s /t 0"}[action]
+    else:
+        cmd = {"reboot": "sudo -n reboot", "poweroff": "sudo -n poweroff"}[action]  # -n: never ask, fail instead
+    try:
+        r = run(target, cmd, timeout=20)
+    except subprocess.TimeoutExpired:
+        return "ok"  # it went down mid-call
+    except OSError:
+        return "error"
+    out = r.stdout + r.stderr
+    if "password is required" in out or "a terminal is required" in out:
+        return "password"
+    if r.returncode in (0, 255) or "closed by remote host" in out:  # 255: the link dropped as it shut down
+        return "ok"
+    return "error"
+
+
 def action_argv(target, windows, action):
     cmd = ACTIONS["windows" if windows else "linux"].get(action)
     if not cmd:
@@ -271,11 +318,10 @@ def send_file(target, windows, path, name):
     return rel if r.returncode == 0 else None
 
 
-# --- Speed test --------------------------------------------------------------
+# --- Speed test ---------------------------------------------------------------
 
 SPEED_SECONDS = 3.0
 CHUNK = 256 * 1024
-WINDOWS_SINK = powershell("$i=[Console]::OpenStandardInput();$b=New-Object byte[] 262144;while($i.Read($b,0,$b.Length) -gt 0){}")
 WINDOWS_SOURCE = powershell("$o=[Console]::OpenStandardOutput();$b=New-Object byte[] 262144;while($true){$o.Write($b,0,$b.Length)}")
 
 
@@ -283,50 +329,111 @@ def _mbps(nbytes, seconds):
     return round(nbytes * 8 / seconds / 1e6, 1) if seconds > 0 else None
 
 
-def speed(target, windows):
-    """Upload and download speed between this machine and the device, in Mbit/s.
+class _Rate:
+    """Live Mbit/s over the last second, from a running byte count."""
+    def __init__(self):
+        self.samples = [(time.perf_counter(), 0)]
+
+    def add(self, total):
+        now = time.perf_counter()
+        self.samples.append((now, total))
+        self.samples = [x for x in self.samples if x[0] >= now - 1.5]
+        t0, b0 = self.samples[0]
+        return _mbps(total - b0, now - t0) if now > t0 else None
+
+
+def _download(base, source, report):
+    """Mbit/s the device sends for SPEED_SECONDS, counted from the first byte; reports live values."""
+    p = subprocess.Popen(base + [source], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    fd, got, start, rate, shown = p.stdout.fileno(), 0, None, _Rate(), 0.0
+    deadline = time.monotonic() + SPEED_SECONDS + 10  # 10 s for it to start sending at all
+    try:
+        while time.monotonic() < deadline:
+            ready, _, _ = select.select([fd], [], [], 0.25)
+            if ready:
+                chunk = os.read(fd, CHUNK)
+                if not chunk:
+                    break
+                if start is None:  # PowerShell takes a moment to start: don't count that
+                    start = time.perf_counter()
+                    deadline = time.monotonic() + SPEED_SECONDS
+                got += len(chunk)
+            if start and time.perf_counter() - shown >= 0.25:
+                shown = time.perf_counter()
+                report(live=rate.add(got), progress=min(1, (shown - start) / SPEED_SECONDS))
+    finally:
+        p.kill()
+        p.wait()
+    return _mbps(got, time.perf_counter() - start) if start else None
+
+
+UPLOAD_LIMIT = 40  # seconds; a watchdog ends the upload after this, whatever happens
+WIN_PIECES = 5     # Windows upload goes in pieces, so there's something to show while it runs
+
+
+def _upload(target, windows, nbytes, tmp_dir, report):
+    """Send nbytes and time it until the device has them all (not just until our buffers empty).
+
+    Linux: piped into `head`. Windows: copied as a temporary file over SFTP, in pieces (the same way
+    files are sent), because PowerShell started over SSH never reads what's piped into it."""
+    start = time.perf_counter()
+    if windows:
+        piece = max(256 * 1024, nbytes // WIN_PIECES)
+        local = tmp_dir / "homebase-speedtest.tmp"
+        with open(local, "wb") as f:
+            f.truncate(piece)  # zeros, without writing them all to disk
+        sent = 0
+        try:
+            while sent < nbytes and time.perf_counter() - start < UPLOAD_LIMIT:
+                t = time.perf_counter()
+                r = subprocess.run(["scp", "-q", *ssh_args(), "--", str(local), f"{target}:homebase-speedtest.tmp"],
+                                   capture_output=True, timeout=UPLOAD_LIMIT)
+                if r.returncode != 0:
+                    return None
+                sent += piece
+                report(live=_mbps(piece, time.perf_counter() - t), progress=min(1, sent / nbytes))
+            took = time.perf_counter() - start
+            run(target, powershell("Remove-Item -LiteralPath (Join-Path $HOME 'homebase-speedtest.tmp')"), timeout=20)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        finally:
+            local.unlink(missing_ok=True)
+        return _mbps(sent, took)
+    p = subprocess.Popen(["ssh", *ssh_args(), "--", target, f"head -c {nbytes} > /dev/null"],
+                         stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    watchdog = threading.Timer(UPLOAD_LIMIT, p.kill)  # a write can block forever if the other end stalls
+    watchdog.start()
+    sent, zeros, rate, shown = 0, bytes(CHUNK), _Rate(), 0.0
+    try:
+        while sent < nbytes:
+            n = min(CHUNK, nbytes - sent)
+            p.stdin.write(zeros[:n])
+            sent += n
+            if time.perf_counter() - shown >= 0.25:
+                shown = time.perf_counter()
+                report(live=rate.add(sent), progress=min(1, sent / nbytes))
+        p.stdin.close()
+        p.wait()
+    except (BrokenPipeError, OSError):
+        p.wait()
+    finally:
+        watchdog.cancel()
+    return _mbps(sent, time.perf_counter() - start) if p.returncode == 0 and sent == nbytes else None
+
+
+def speed(target, windows, tmp_dir, report=lambda **kw: None):
+    """Download and upload speed between this machine and the device, in Mbit/s.
+    report(phase=..., live=..., progress=...) is called as it goes, for a live gauge.
 
     Data goes through SSH (nothing to install), so a device with a weak CPU
     (Pi Zero) may top out below what its Wi-Fi could do."""
     if not key_works(target):  # also opens the shared connection, so the handshake isn't timed
         return None
-    sink, source = (WINDOWS_SINK, WINDOWS_SOURCE) if windows else ("cat > /dev/null", "cat /dev/zero")
     base = ["ssh", *ssh_args(), "--", target]
-    result = {}
-    zeros = bytes(CHUNK)
-
-    up = subprocess.Popen(base + [sink], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    sent, start = 0, time.perf_counter()
-    try:
-        while time.perf_counter() - start < SPEED_SECONDS:
-            up.stdin.write(zeros)
-            sent += CHUNK
-        up.stdin.close()
-    except (BrokenPipeError, OSError):
-        pass
-    # Stop the clock only once the device has read everything: until then up to a few MB
-    # still sit in SSH's buffers, which would overstate a slow link by a lot.
-    try:
-        up.wait(timeout=30)
-        result["up"] = _mbps(sent, time.perf_counter() - start)
-    except subprocess.TimeoutExpired:
-        up.kill()
-        result["up"] = None
-
-    down = subprocess.Popen(base + [source], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    got, start = 0, None
-    try:
-        while True:
-            chunk = down.stdout.read1(CHUNK)
-            if not chunk:
-                break
-            if start is None:  # count from the first byte: PowerShell takes a moment to start
-                start = time.perf_counter()
-            got += len(chunk)
-            if time.perf_counter() - start >= SPEED_SECONDS:
-                break
-    finally:
-        down.kill()
-        down.wait()
-    result["down"] = _mbps(got, time.perf_counter() - start) if start else None
-    return result if result["up"] or result["down"] else None
+    report(phase="download", live=0, progress=0)
+    down = _download(base, WINDOWS_SOURCE if windows else "cat /dev/zero", report)
+    report(phase="upload", down=down, live=0, progress=0)
+    # Upload about SPEED_SECONDS' worth, guessed from the download speed (links are rarely lopsided at home).
+    nbytes = int(min(80e6, max(1e6, (down or 8) * 1e6 / 8 * SPEED_SECONDS)))
+    up = _upload(target, windows, nbytes, tmp_dir, report)
+    return {"down": down, "up": up} if down or up else None

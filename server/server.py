@@ -31,6 +31,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import identify as idf
+import netspeed
 import remote
 
 HERE = Path(__file__).resolve().parent
@@ -51,7 +52,7 @@ SCAN_EVERY = 30  # seconds between network discovery sweeps (a sweep is ~254 tin
 lock = threading.Lock()
 devices_lock = threading.Lock()
 state = {"netbook": {}, "devices": {}, "history": {}, "discovered": {}, "last_scan": 0, "stats": {}, "tv": {},
-         "sshstats": {}, "rdp": {}}
+         "sshstats": {}, "rdp": {}, "power": {}}  # power: restarts / shutdowns asked for and not done yet
 
 # First three bytes of the hardware address -> maker, for devices worth naming.
 VENDORS = {
@@ -534,9 +535,20 @@ def sampler():
                         v["since"] = prev.get("since", time.time())
                     # Report real changes only: compare with the last state we actually saw.
                     before = prev.get("online") if prev.get("online") is not None else last_known.get(k)
+                    # A restart / shutdown we asked for: the card shows it until it's done, and its
+                    # off/on goes in the history without a desktop notification.
+                    pw = state["power"].get(k)
+                    if pw:
+                        # Gone at some point: a missed check counts too (a fast PC restarts within the 20 s
+                        # it takes to call a device "off"), and so does a boot time newer than the request.
+                        boot = (state["stats"].get(k) or state["sshstats"].get(k) or {}).get("boot") or 0
+                        pw["off"] = pw["off"] or not v["online"] or k in fails or boot > pw["t"]
+                        done = (pw["off"] and (pw["action"] == "poweroff" or v["online"]))
+                        if done or time.time() - pw["t"] > (360 if pw["action"] == "reboot" else 180):
+                            del state["power"][k]
                     if before is not None and before != v["online"]:
                         changes.append(("on" if v["online"] else "off", f"{name} " + ("turned on" if v["online"] else "turned off"),
-                                        "computer" if v["online"] else "system-shutdown", k))
+                                        "computer" if v["online"] else "system-shutdown", k, not pw))
                     last_known[k] = v["online"]
                     state["devices"][k] = v
                     push(f"lat:{k}", v["latency"])
@@ -556,8 +568,8 @@ def sampler():
                             changes.append(("off", "Internet went down", "network-wireless-offline", None))
                     state["internet"] = internet
                     push("net_lat", ilat)
-            for kind, text, icon, dev in changes:
-                event(kind, text, icon, dev=dev)
+            for kind, text, icon, dev, *loud in changes:
+                event(kind, text, icon, dev=dev, alert=loud[0] if loud else True)
             # TVs: read volume/playback while they're on (cheap: 4 tiny SOAP calls).
             if tick % 2 == 0:
                 for d in load_devices():
@@ -1014,6 +1026,8 @@ def key_setup(dev_id, password):
     err = remote.install_key(target, is_windows(dev), password)
     if err is None:
         event("info", f"{dev['name']}: password-free access set up", alert=False, dev=dev_id)
+        if not is_windows(dev):  # Windows restarts over SSH without sudo
+            remote.allow_power(target, dev["ssh_user"], password)
     with devices_lock:
         devices = load_devices()
         for d in devices:
@@ -1067,6 +1081,37 @@ def rdp_checker():
         except Exception:
             pass
         time.sleep(30)
+
+
+devspeed = {"phase": "idle"}  # the device speed test: one at a time, polled by the page while it runs
+devspeed_lock = threading.Lock()
+
+
+def device_speed(dev, target):
+    with devspeed_lock:
+        if devspeed.get("phase") in ("download", "upload"):
+            return
+        devspeed.clear()
+        devspeed.update(phase="download", dev=dev["id"], started=time.time())
+    # Response time: what Homebase already measures every few seconds (median of the last minute).
+    with lock:
+        lat = [v for v in list(state["history"].get(f"lat:{dev['id']}", []))[-15:] if v is not None]
+    if lat:
+        devspeed["ping"] = sorted(lat)[len(lat) // 2]
+
+    def report(**kw):
+        with devspeed_lock:
+            devspeed.update(kw)
+    (DATA / "tmp").mkdir(exist_ok=True)
+    try:
+        res = remote.speed(target, is_windows(dev), DATA / "tmp", report)
+    except Exception:
+        res = None
+    with devspeed_lock:
+        if res:
+            devspeed.update(res, phase="done", live=0, finished=time.time())
+        else:
+            devspeed.update(phase="error", error=f"Couldn't measure the speed to {dev['name']}")
 
 
 SSH_STATS_EVERY = 30  # seconds
@@ -1337,13 +1382,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send(200, f.read_bytes(), ctype + "; charset=utf-8")
         elif self.path.startswith("/api/term/") and self.path.endswith("/stream"):
             self.term_stream(self.path.split("/")[3])
+        elif self.path == "/api/netspeed":  # polled fast while the internet speed test runs
+            self.send(200, netspeed.snapshot())
+        elif self.path == "/api/devspeed":  # same, for the speed test to a device
+            with devspeed_lock:
+                snap = dict(devspeed)
+            self.send(200, snap)
         elif self.path == "/api/state":
             raw = load_devices()
             known = {d.get("mac", "").lower() for d in raw}
             devices = [{k: v for k, v in d.items() if k != "agent_token"}
                        | {"has_wake": bool(d.get("mac")) and d.get("kind") in ("desktop", "laptop", "other"),
                           "has_agent": bool(d.get("agent_token")), "windows": is_windows(d),
-                          "recent": device_events(d), "rdp": state["rdp"].get(d["id"])} for d in raw]
+                          "recent": device_events(d), "rdp": state["rdp"].get(d["id"]),
+                          "power": (state["power"].get(d["id"]) or {}).get("action")} for d in raw]
             with lock:
                 body = {
                     "netbook": state["netbook"],
@@ -1359,6 +1411,8 @@ class Handler(BaseHTTPRequestHandler):
                     "stats": {k: v for k, v in state["stats"].items() if time.time() - v["t"] < STATS_FRESH},
                     "history": {k: list(v) for k, v in state["history"].items()},
                     "agents_enabled": AGENTS_ENABLED,
+                    # Changes when the page itself changes, so an open page knows to reload.
+                    "ui": int((UI_DIR / "index.html").stat().st_mtime),
                     "tv": {k: v for k, v in state["tv"].items() if time.time() - v["t"] < 15},
                     "now": time.time(),
                 }
@@ -1403,6 +1457,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Origin") not in (None, f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}"):
             return self.send(403, {"error": "forbidden"})
         parts = self.path.strip("/").split("/")
+        if parts == ["api", "netspeed"]:  # start the internet speed test (no-op if one is running)
+            threading.Thread(target=netspeed.run, daemon=True).start()
+            return self.send(200, {"ok": True})
         if parts == ["api", "scan"]:
             threading.Thread(target=scan, daemon=True).start()
             return self.send(200, {"ok": True})
@@ -1464,11 +1521,28 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(400, {"error": "bad json"})
             err = key_setup(dev_id, password)
             return self.send(200, {"ok": err is None, "error": err})
-        if action == "speed":
+        if action == "power":
             dev = next((d for d in load_devices() if d["id"] == dev_id), None)
             target = ssh_target(dev) if dev and dev.get("key") else None
-            res = remote.speed(target, is_windows(dev)) if target else None
-            return self.send(200, {"ok": bool(res), **(res or {})})
+            try:
+                what = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 256)) or b"{}").get("action")
+            except (ValueError, json.JSONDecodeError, AttributeError):
+                what = None
+            if not target or what not in ("reboot", "poweroff"):
+                return self.send(400, {"ok": False})
+            res = remote.power(target, is_windows(dev), what)
+            if res == "ok":
+                with lock:
+                    state["power"][dev_id] = {"action": what, "t": time.time(), "off": False}
+                event("info", f"{dev['name']}: " + ("restarting" if what == "reboot" else "shutting down"), alert=False, dev=dev_id)
+            return self.send(200, {"ok": res == "ok", "password": res == "password"})
+        if action == "speed":  # starts in the background; the page polls GET /api/devspeed for the live gauge
+            dev = next((d for d in load_devices() if d["id"] == dev_id), None)
+            target = ssh_target(dev) if dev and dev.get("key") else None
+            if not target:
+                return self.send(400, {"ok": False})
+            threading.Thread(target=device_speed, args=(dev, target), daemon=True).start()
+            return self.send(200, {"ok": True})
         if action == "remove":
             return self.send(200, {"ok": remove_device(dev_id)})
         if action == "agent":
