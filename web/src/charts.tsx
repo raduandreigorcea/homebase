@@ -86,14 +86,44 @@ function hoverProps(data: Series, label: string, unit: string, inset = 0): JSX.S
   };
 }
 
+/** Where nothing answered (internet down, device gone), drawn red and joined to the line: from the last
+ *  answer down to the floor, along it, and back up to the next answer (or on to the right edge while it's
+ *  still down). Only after the history starts; isDown can narrow which gaps count (history: not "asleep"). */
+function DownMarks({ vals, x, y, floor, right, h, isDown = () => true }:
+  { vals: Series; x: (i: number) => number; y: (v: number) => number; floor: number; right: number; h: number; isDown?: (i: number) => boolean }) {
+  const first = vals.findIndex(v => v != null);
+  if (first < 0) return null;
+  const out = [];
+  for (let i = first; i < vals.length; i++) {
+    if (vals[i] != null || !isDown(i)) continue;
+    let j = i;
+    while (j < vals.length && vals[j] == null && isDown(j)) j++;
+    const prev = vals[i - 1], next = vals[j];
+    const a: Pt = prev != null ? [x(i - 1), y(prev)] : [x(i), floor];
+    const b: Pt = next != null && j < vals.length ? [x(j), y(next)] : [j < vals.length ? x(j - 1) : right, floor];
+    const d = `M${a[0].toFixed(1)} ${a[1].toFixed(1)} L${x(i).toFixed(1)} ${floor} L${x(j - 1).toFixed(1)} ${floor} L${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
+    out.push(<g key={i}>
+      <rect x={a[0].toFixed(1)} y="0" width={Math.max(3, b[0] - a[0]).toFixed(1)} height={h} fill="var(--red)" opacity=".14" />
+      <path d={d} fill="none" stroke="var(--red)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+    </g>);
+    i = j;
+  }
+  return <>{out}</>;
+}
+
 /** The card's response-time line: the big chart in miniature (no scale). */
 export function Spark({ data }: { data: Series }) {
   const [ref, w, h] = useSize<SVGSVGElement>();
   const pad = 3, top = latTop(data), step = w / (N - 1), off = w - (data.length - 1) * step;
+  const vals = blipsAsSpikes(data, top);
+  const x = (i: number) => off + i * step, y = (v: number) => h - pad - Math.min(v, top) / top * (h - 2 * pad);
   return (
     <svg ref={ref} class="spark" viewBox={`0 0 ${w || 300} ${h || 30}`} preserveAspectRatio="none" aria-label="Response time, last 3 minutes"
          {...hoverProps(data, 'Response', ' ms')}>
-      {w > 0 && <LineWithFill segs={segmentsOf(blipsAsSpikes(data, top), (v, i) => [off + i * step, h - pad - Math.min(v, top) / top * (h - 2 * pad)])} base={h} col="var(--blue)" />}
+      {w > 0 && <>
+        <DownMarks vals={vals} x={x} y={y} floor={h - pad} right={w} h={h} />
+        <LineWithFill segs={segmentsOf(vals, (v, i) => [x(i), y(v)])} base={h} col="var(--blue)" />
+      </>}
     </svg>
   );
 }
@@ -113,16 +143,6 @@ export function NetChart({ data, ok }: { data: Series; ok: boolean }) {
   const first = data.findIndex(v => v != null);
   const startX = first < 0 ? right : off + first * step;
   const hv = hover != null ? data[hover] : null;
-  // Runs of missed checks after the history starts: the internet didn't answer. Drawn red, from the
-  // last answer to the next one (or to the right edge if it's still down), so an outage reads as one.
-  const downRuns: [number, number][] = [];
-  for (let i = Math.max(first, 0); first >= 0 && i < data.length; i++) {
-    if (data[i] != null) continue;
-    let j = i;
-    while (j < data.length && data[j] == null) j++;
-    downRuns.push([off + (i - 1) * step, j < data.length ? off + j * step : right]);
-    i = j;
-  }
   return (
     <svg ref={ref} class="net-chart" viewBox={`0 0 ${w || 300} ${h || 38}`} preserveAspectRatio="none" role="img" aria-label="Response time to the internet"
          onMouseMove={e => {
@@ -134,10 +154,7 @@ export function NetChart({ data, ok }: { data: Series; ok: boolean }) {
       {w > 0 && <>
         {startX - pad > 2 && <line x1={pad} x2={startX.toFixed(1)} y1={(first < 0 ? h / 2 : y(data[first]!)).toFixed(1)} y2={(first < 0 ? h / 2 : y(data[first]!)).toFixed(1)}
                                    stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round" />}
-        {downRuns.map(([a, b], k) => <g key={'d' + k}>
-          <rect x={a.toFixed(1)} y="0" width={Math.max(3, b - a).toFixed(1)} height={h} fill="var(--red)" opacity=".18" rx="2" />
-          <line x1={a.toFixed(1)} x2={b.toFixed(1)} y1={h - pad} y2={h - pad} stroke="var(--red)" stroke-width="2" stroke-linecap="round" />
-        </g>)}
+        <DownMarks vals={data} x={i => off + i * step} y={y} floor={h - pad} right={right} h={h} />
         <LineWithFill segs={segs} base={h - pad} col={col} />
         {hv != null ? (() => {
           const hx = off + hover! * step, flip = hx > w - 60;
@@ -169,6 +186,7 @@ export function BigLatChart({ data }: { data: Series }) {
           return <g key={f}><line x1="0" x2={w} y1={gy} y2={gy} stroke="#1b2430" /><text x="2" y={gy - 4} fill="var(--dim)" font-size="10">{Math.round(top * f)} ms</text></g>;
         })}
         {startX > 4 && <line x1="0" x2={startX.toFixed(1)} y1={h - pad} y2={h - pad} stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="2 5" />}
+        <DownMarks vals={blipsAsSpikes(data, top)} x={i => off + i * step} y={y} floor={h - pad} right={w} h={h} />
         <LineWithFill segs={segmentsOf(blipsAsSpikes(data, top), (v, i) => [off + i * step, y(v)])} base={h - pad} col="var(--blue)" />
         {data.map((v, i) => v != null && v > top &&
           <text key={i} x={(off + i * step).toFixed(1)} y="10" text-anchor="middle" fill="var(--amber)" font-size="10">↑{Math.round(v)}</text>)}
@@ -260,8 +278,8 @@ export function HistoryChart({ points, outages, step, range }: { points: NetPoin
           const gy = pad + (1 - f) * (ch - 2 * pad);
           return <g key={f}><line x1="0" x2={w} y1={gy} y2={gy} stroke="#1b2430" /><text x="2" y={gy - 4} fill="var(--dim)" font-size="10">{Math.round(top * f)} ms</text></g>;
         })}
-        {points.map((p, i) => p.avg == null && p.loss
-          ? <rect key={'p' + i} x={(i * colW).toFixed(1)} y="0" width={colW.toFixed(1)} height={ch} fill="var(--red)" opacity=".28" /> : null)}
+        <DownMarks vals={data} x={i => i * colW + colW / 2} y={y} floor={ch - pad} right={(points.length - 1) * colW + colW / 2} h={ch}
+                   isDown={i => !!points[i].loss} />
         {outages.map((o, i) => {
           // At least 4 px, centred on the outage, so a 30-second outage in a month still shows.
           let a = Math.max(0, x(o.start)), b = Math.min(w, x(o.end));
