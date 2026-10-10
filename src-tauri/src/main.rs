@@ -6,9 +6,12 @@ use tauri::{WebviewUrl, WebviewWindowBuilder};
 const PANEL: &str = "http://127.0.0.1:8800/";
 
 fn main() {
-    // GPU rendering has crashed this laptop before, so WebKitGTK draws in software.
-    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-    std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+    // GPU rendering has crashed this laptop before, so WebKitGTK draws in software,
+    // unless started with HOMEBASE_GPU=1 (to try hardware acceleration).
+    if std::env::var("HOMEBASE_GPU").as_deref() != Ok("1") {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+    }
 
     // Make sure the data service is up, then wait (max ~15 s) for it to answer.
     // Done here rather than in a start page: a tauri:// page can't fetch or
