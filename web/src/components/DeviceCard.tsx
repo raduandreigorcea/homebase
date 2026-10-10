@@ -6,7 +6,7 @@ import { connect, openTerminal, preparePc, removeDevice, editDevice, sendFiles, 
 import { Spark } from '../charts';
 import { bytes, clock, color, dur } from '../format';
 import { Back, Close, Connect, Edit, Fwd, KindIcon, Muted, Pause, Play, Power, Stop, Terminal, Vol } from '../icons';
-import { detailId, powerOf, state } from '../store';
+import { detailId, noNetwork, powerOf, state } from '../store';
 import { AsyncButton, toast } from '../ui';
 
 export const POWER_TXT = { reboot: 'Restarting…', poweroff: 'Shutting down…' } as const;
@@ -122,7 +122,7 @@ export function DeviceCard({ d, st }: { d: Device; st?: Status }) {
           <div class="dev-name" title={d.name}>{d.name}</div>
           <div class="dev-sub">{d.os && <><span class="os-tag">{d.os.replace(' (DLNA)', '')}</span> · </>}{d.host}</div>
           <span class={`pill ${pending ? 'pending' : !checked ? '' : online ? 'on' : 'off'}`}><span class="dot" />
-            {pending ? POWER_TXT[pending] : !checked ? 'Checking…' : online ? 'On' : 'Off'}</span>
+            {pending ? POWER_TXT[pending] : !checked ? (noNetwork.value ? 'No network' : 'Checking…') : online ? 'On' : 'Off'}</span>
         </div>
         <div class="dev-tools">
           <button class="icon-btn" title="Settings" onClick={e => { e.stopPropagation(); editDevice(d); }}><Edit /></button>
@@ -137,8 +137,8 @@ export function DeviceCard({ d, st }: { d: Device; st?: Status }) {
         </div>
       ) : !checked && <>
         <div class="facts">
-          <div><span>Response</span><TBar /></div>
-          <div><span>On for</span><TBar /></div>
+          <div><span>Response</span>{noNetwork.value ? <b>–</b> : <TBar />}</div>
+          <div><span>On for</span>{noNetwork.value ? <b>–</b> : <TBar />}</div>
         </div>
         {d.probe_port && !d.dlna && <svg class="spark" />}
       </>}

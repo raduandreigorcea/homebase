@@ -7,7 +7,7 @@ import { deviceActions, doAction, editDevice, sendFiles } from '../actions';
 import { BigLatChart, MiniSpark } from '../charts';
 import { ago, bytes, color, dur, evTime } from '../format';
 import { Close, Edit, KindIcon } from '../icons';
-import { detailId, deviceById, powerOf, speeds, state } from '../store';
+import { detailId, deviceById, noNetwork, powerOf, speeds, state } from '../store';
 import { POWER_TXT, TvBlock } from './DeviceCard';
 import { DeviceSpeed } from './SpeedTest';
 
@@ -37,7 +37,7 @@ function Live({ d, x }: { d: Device; x: Stats | null }) {
         {x.gpu != null && <Tile label="GPU" value={Math.round(x.gpu)} unit="%"><MiniSpark data={h['gpu:' + d.id]} col={color(x.gpu)} top={100} label="GPU" unit="%" /></Tile>}
         <Tile label="RAM" value={Math.round(ram)} unit="%"><MiniSpark data={h['ram:' + d.id]} col={color(ram, 75, 90)} top={100} label="RAM" unit="%" /></Tile>
       </div>}
-      {!checked ? <p class="dv-note">Checking…</p> : !online && <p class="dv-note">The device is off or not on the network.</p>}
+      {!checked ? <p class="dv-note">{noNetwork.value ? 'This laptop isn\'t connected to the network, so it can\'t see the device right now.' : 'Checking…'}</p> : !online && <p class="dv-note">The device is off or not on the network.</p>}
       {d.probe_port && <div class="dv-sec">
         <h4>Response time <span>{online && st.latency != null && <><b>{Math.round(st.latency)} ms now</b> · </>}
           {lat.length ? `min ${Math.round(Math.min(...lat))} · avg ${Math.round(lat.reduce((a, b) => a + b, 0) / lat.length)} · last 3 min` : 'last 3 min'}</span></h4>
@@ -126,7 +126,7 @@ export function DeviceScreen() {
           <div class="dv-who">
             <h3><span id="dv-name">{d.name}</span>
               <span class={`pill ${pending ? 'pending' : !checked ? '' : online ? 'on' : 'off'}`}><span class="dot" />
-                {pending ? POWER_TXT[pending] : !checked ? 'Checking…' : online ? <>On{st.since && <small> · for {dur(s.now - st.since)}</small>}</> : 'Off'}</span></h3>
+                {pending ? POWER_TXT[pending] : !checked ? (noNetwork.value ? 'No network' : 'Checking…') : online ? <>On{st.since && <small> · for {dur(s.now - st.since)}</small>}</> : 'Off'}</span></h3>
             <p>{sub.map((part, i) => <span key={i}>{i > 0 && ' · '}{part}</span>)}</p>
           </div>
           <span class="dv-tools">

@@ -117,6 +117,7 @@ export interface State {
   discovered: Found[];
   last_scan: number;
   internet: Internet | null;
+  lan?: boolean;  // false: this laptop has no network at all, so devices can't be seen
   events: HbEvent[];
   history: Record<string, (number | null)[]>;
 }

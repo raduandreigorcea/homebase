@@ -23,6 +23,9 @@ export const powerOf = (d: Device) => localPower.value[d.id] || d.power || null;
 /** The last speed test to each device, shown in its screen (not on the card: it isn't live). */
 export const speeds = signal<Record<string, { down: string; up: string; t: number }>>({});
 
+/** This laptop has no network (Wi-Fi off or not connected): the devices are unknown, not off. */
+export const noNetwork = computed(() => state.value?.lan === false);
+
 export const devices = computed(() => state.value?.devices || []);
 export const deviceById = (id: string | null) => devices.value.find(d => d.id === id);
 

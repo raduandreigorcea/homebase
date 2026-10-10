@@ -62,7 +62,7 @@ export function LaptopCard() {
               onClick={() => { historyOpen.value = true; }}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); historyOpen.value = true; } }}>
           {s && <WifiIcon signal={nb?.net.signal} ok={n == null || n.online} />}
-          <span>Internet <b>{n == null ? '…' : !n.online ? `down for ${dur(s!.now - (n.down_since || s!.now))}` : n.latency != null ? Math.round(n.latency) + ' ms' : 'connected'}</b></span>
+          <span>Internet <b>{s?.lan === false ? 'no network' : n == null ? '…' : !n.online ? `down for ${dur(s!.now - (n.down_since || s!.now))}` : n.latency != null ? Math.round(n.latency) + ' ms' : 'connected'}</b></span>
         </span>
       </div>
     </section>

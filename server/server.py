@@ -496,6 +496,9 @@ def sampler():
             waking = woke_at is not None and mono - woke_at < WAKE_GRACE
 
             s = nb.sample()
+            # No route out at all (this laptop's Wi-Fi is off or not connected): the devices aren't
+            # off, we just can't see them. They show as "no network", with no on/off events.
+            lan = s.get("ip") is not None
             devices = {}
             internet = None
             # Devices and internet are probed every other tick to keep idle cost down.
@@ -503,8 +506,12 @@ def sampler():
                 devs = load_devices()
                 # Check all devices at once: a powered-off one costs a full timeout,
                 # and that shouldn't hold up the others.
-                with ThreadPoolExecutor(max(1, min(8, len(devs)))) as ex:
-                    results = list(ex.map(check_device, devs))
+                if lan:
+                    with ThreadPoolExecutor(max(1, min(8, len(devs)))) as ex:
+                        results = list(ex.map(check_device, devs))
+                else:
+                    results = [(None, None)] * len(devs)
+                    fails.clear()  # nothing went quiet on its own: don't count this time towards "off"
                 for d, (online, lat) in zip(devs, results):
                     # A device in Wi-Fi power saving can miss a few checks while it's
                     # perfectly fine, so it's only "off" after DEVICE_OFF_AFTER seconds
@@ -520,8 +527,8 @@ def sampler():
                     if waking and online is False:
                         online = None
                     devices[d["id"]] = {"online": online, "latency": lat, "checked": time.time(), "name": d["name"]}
-                ilat = check_internet()
-                net_fails = 0 if ilat is not None else net_fails + 1
+                ilat = check_internet() if lan else None
+                net_fails = 0 if ilat is not None else net_fails + 1 if lan else FAILS_BEFORE_OFF
                 internet = {"online": ilat is not None or net_fails < FAILS_BEFORE_OFF, "latency": ilat,
                             "ssid": s["net"].get("ssid")}
                 if waking and ilat is None:
@@ -531,6 +538,7 @@ def sampler():
 
             changes = []
             with lock:
+                state["lan"] = lan
                 state["netbook"] = s
                 push("cpu", s["cpu"])
                 push("mem", s["mem"]["pct"])
@@ -1427,6 +1435,7 @@ class Handler(BaseHTTPRequestHandler):
                                    if k not in known and v["kind"] not in ("phone", "router")],
                     "last_scan": state["last_scan"],
                     "internet": state.get("internet"),
+                    "lan": state.get("lan", True),
                     "sshstats": {k: v for k, v in state["sshstats"].items() if time.time() - v["t"] < SSH_STATS_FRESH},
                     "gateway": next((v["ip"] for v in state["discovered"].values() if v["kind"] == "router"), None),
                     "events": list(events)[-30:][::-1],
