@@ -231,6 +231,7 @@
   /* The internet line opens the speed test. */
   .bat-net { cursor: pointer; border-radius: 8px; padding: 2px 6px; margin-right: -6px; }
   .bat-net:hover { background: var(--panel-2); color: var(--text); }
+  .bat-net:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   .bat-net svg { width: 18px; height: 18px; flex: none; }
   .bat-net b { color: var(--text); font-weight: 600; }
   .bat-net.off b { color: var(--red); }
@@ -406,8 +407,6 @@
   footer { max-width: 1200px; margin: 18px auto 0; color: var(--dim); font-size: 12px; text-align: center; }
 
   /* Internet history window */
-  header .net { cursor: pointer; border-radius: 8px; }
-  header .net:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
   .hist-win { width: min(900px, 100%); }
   .hist-win .dv-tools { align-items: center; gap: 8px; }
   .hist-win .dv-tools > button:not(.icon-btn) { padding: 6px 12px; }

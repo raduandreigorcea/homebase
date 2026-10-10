@@ -18,6 +18,10 @@ function when(t: number): string {
   return d.toDateString() === today ? `Today ${hhmm(d)}` : `${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} ${hhmm(d)}`;
 }
 
+// The last history fetched per range: reopening the window shows it at once, at its final size,
+// instead of an empty window that grows when the data arrives.
+const cache: Partial<Record<Range, NetHistory>> = {};
+
 function Tile({ label, value, unit, sub, warn }: { label: string; value: string; unit?: string; sub?: string; warn?: boolean }) {
   return (
     <div class="dv-tile">
@@ -30,12 +34,13 @@ function Tile({ label, value, unit, sub, warn }: { label: string; value: string;
 
 export function InternetHistory() {
   const [range, setRange] = useState<Range>('day');
-  const [h, setH] = useState<NetHistory | null>(null);
+  const [h, setH] = useState<NetHistory | null>(cache.day || null);
   const closeBtn = useRef<HTMLButtonElement>(null);
   useEffect(() => { closeBtn.current?.focus(); }, []);
   useEffect(() => {
     let alive = true;
-    const load = () => getJSON<NetHistory>(`/api/nethistory?range=${range}`).then(r => { if (alive) setH(r); }).catch(() => {});
+    const load = () => getJSON<NetHistory>(`/api/nethistory?range=${range}`).then(r => { cache[range] = r; if (alive) setH(r); }).catch(() => {});
+    if (cache[range]) setH(cache[range]!);
     load();
     const t = setInterval(load, 30000);
     return () => { alive = false; clearInterval(t); };
@@ -79,7 +84,7 @@ export function InternetHistory() {
           </div>
           <div class="dv-sec">
             <h4>Outages <span>{span}</span></h4>
-            {!shown ? null : shown.outages.length === 0
+            {!shown ? <p class="dv-note">{'\u00a0'}</p> : shown.outages.length === 0
               ? <p class="dv-note">No outages in this period.</p>
               : <div class="hist-outs">
                   {shown.outages.slice(0, 30).map(o =>

@@ -4,7 +4,7 @@ import type { HbEvent } from '../api';
 import { Gauge, NetChart } from '../charts';
 import { bytes, color, dur, hhmm } from '../format';
 import { BatteryIcon, WifiIcon } from '../icons';
-import { historyOpen, offline, netSpeedOpen, state } from '../store';
+import { historyOpen, offline, state } from '../store';
 
 export function Header() {
   const s = state.value;
@@ -19,11 +19,7 @@ export function Header() {
         <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#121820" stroke="#232d39" /><path d="M8 17l8-7 8 7v7H8z" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linejoin="round" /></svg>
         <div><h1>Homebase</h1><p title="This laptop's address on your network">{s?.netbook?.ip || '\u00a0'}</p></div>
       </div>
-      <div class="net" title={title ? title + ' · click for history' : ''} role="button" tabIndex={0}
-           onClick={() => { if (s) historyOpen.value = true; }}
-           onKeyDown={e => { if (s && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); historyOpen.value = true; } }}>
-        {s && <NetChart data={data} ok={n?.online !== false} />}
-      </div>
+      <div class="net" title={title}>{s && <NetChart data={data} ok={n?.online !== false} />}</div>
       <Clock />
     </header>
   );
@@ -62,7 +58,9 @@ export function LaptopCard() {
         <span class="bat-info">
           {b && <><BatteryIcon pct={b.pct} status={b.status} /><span>Battery <b>{b.pct}%</b> · {({ Charging: 'charging', Discharging: 'on battery', Full: 'full', 'Not charging': 'plugged in' } as Record<string, string>)[b.status] || b.status}</span></>}
         </span>
-        <span class={`bat-net${n && !n.online ? ' off' : ''}`} title="Test your internet speed" onClick={() => { netSpeedOpen.value = true; }}>
+        <span class={`bat-net${n && !n.online ? ' off' : ''}`} title="Internet history and speed test" role="button" tabIndex={0}
+              onClick={() => { historyOpen.value = true; }}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); historyOpen.value = true; } }}>
           {s && <WifiIcon signal={nb?.net.signal} ok={n == null || n.online} />}
           <span>Internet <b>{n == null ? '…' : !n.online ? `down for ${dur(s!.now - (n.down_since || s!.now))}` : n.latency != null ? Math.round(n.latency) + ' ms' : 'connected'}</b></span>
         </span>
