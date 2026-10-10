@@ -3,6 +3,8 @@
 // flatten it. Hovering any chart shows the value under the pointer.
 import type { JSX, RefObject } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import type { NetPoint, Outage } from './api';
+import { hhmm } from './format';
 import { hideTip, showTip } from './ui';
 
 const N = 90;  // samples on a response-time axis (a sample every 2-4 s)
@@ -186,6 +188,66 @@ export function Gauge({ pct, text, col }: { pct: number; text: string; col: stri
       <path d={`M${cx - r} ${cy} A${r} ${r} 0 0 1 ${cx + r} ${cy}`} fill="none" stroke={col} stroke-width="9" stroke-linecap="round"
             stroke-dasharray={len} stroke-dashoffset={len * (1 - p)} style="transition:stroke-dashoffset .6s" />
       <text x={cx} y={cy - 4} text-anchor="middle" fill="#e6edf3" font-size="20" font-weight="600">{text}</text>
+    </svg>
+  );
+}
+
+/** The internet over a day, week or month: average response time per point, outages as red bands,
+ *  and gaps where the laptop was off or asleep. */
+export function HistoryChart({ points, outages, step, range }: { points: NetPoint[]; outages: Outage[]; step: number; range: string }) {
+  const [ref, w, h] = useSize<SVGSVGElement>();
+  const axis = 18, ch = h - axis, pad = 4;
+  const data: Series = points.map(p => p.avg ?? null);
+  const top = latTop(data);
+  const t0 = points[0]?.t ?? 0, t1 = (points[points.length - 1]?.t ?? 0) + step;
+  const x = (t: number) => (t - t0) / Math.max(1, t1 - t0) * w;
+  const y = (v: number) => ch - pad - Math.min(v, top) / top * (ch - 2 * pad);
+  const colW = w / Math.max(1, points.length);
+  // Time labels: every 6 hours over a day, each midnight over a week, every 5 days over a month.
+  const ticks: [number, string][] = [];
+  const d = new Date(t0 * 1000);
+  d.setMinutes(0, 0, 0);
+  if (range === 'day') {
+    d.setHours(Math.ceil(d.getHours() / 6) * 6);
+    for (; d.getTime() / 1000 < t1; d.setHours(d.getHours() + 6)) ticks.push([d.getTime() / 1000, hhmm(d)]);
+  } else {
+    d.setHours(24);
+    const every = range === 'week' ? 1 : 5;
+    for (; d.getTime() / 1000 < t1; d.setDate(d.getDate() + every))
+      ticks.push([d.getTime() / 1000, d.toLocaleDateString('en-GB', range === 'week' ? { weekday: 'short' } : { day: 'numeric', month: 'short' })]);
+  }
+  const tipFor = (p: NetPoint) => {
+    const when = new Date(p.t * 1000);
+    const label = range === 'day' ? hhmm(when) : when.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + (range === 'week' ? ' ' + hhmm(when) : '');
+    if (p.avg == null) return p.loss ? `${label}: down` : `${label}: not measured (laptop off or asleep)`;
+    return `${label}: ${Math.round(p.avg)} ms average, worst ${Math.round(p.max ?? p.avg)} ms${p.loss ? `, ${Math.round(p.loss * 100)}% unanswered` : ''}`;
+  };
+  return (
+    <svg ref={ref} class="hist-chart" viewBox={`0 0 ${w || 600} ${h || 190}`} preserveAspectRatio="none" aria-label="Internet response time over time"
+         onMouseMove={e => {
+           const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+           const i = Math.floor((e.clientX - r.left) / r.width * points.length);
+           if (i >= 0 && i < points.length) showTip(e, tipFor(points[i])); else hideTip();
+         }}
+         onMouseLeave={hideTip}>
+      {w > 0 && <>
+        {[0, .5, 1].map(f => {
+          const gy = pad + (1 - f) * (ch - 2 * pad);
+          return <g key={f}><line x1="0" x2={w} y1={gy} y2={gy} stroke="#1b2430" /><text x="2" y={gy - 4} fill="var(--dim)" font-size="10">{Math.round(top * f)} ms</text></g>;
+        })}
+        {outages.map((o, i) => {
+          const a = Math.max(0, x(o.start)), b = Math.min(w, x(o.end));
+          return b > 0 && a < w && <rect key={i} x={a.toFixed(1)} y="0" width={Math.max(2, b - a).toFixed(1)} height={ch} fill="var(--red)" opacity=".28" />;
+        })}
+        <LineWithFill segs={segmentsOf(data, (v, i) => [i * colW + colW / 2, y(v)])} base={ch - pad} col="var(--blue)" />
+        {ticks.map(([t, label]) => {
+          const tx = x(t);
+          return tx > 14 && tx < w - 14 && <g key={t}>
+            <line x1={tx} x2={tx} y1={ch} y2={ch + 4} stroke="var(--line)" />
+            <text x={tx} y={h - 2} text-anchor="middle" fill="var(--dim)" font-size="10">{label}</text>
+          </g>;
+        })}
+      </>}
     </svg>
   );
 }

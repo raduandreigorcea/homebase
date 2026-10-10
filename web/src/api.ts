@@ -80,6 +80,21 @@ export interface Laptop {
   net: { signal?: number; ssid?: string };
   temps: { cpu?: number };
   battery: { pct: number; status: string } | null;
+  ip?: string | null;
+}
+
+/** The internet over a day / week / month (GET /api/nethistory?range=...). A point without avg wasn't measured. */
+export interface NetPoint { t: number; avg?: number; max?: number; loss?: number }
+export interface Outage { start: number; end: number; ongoing?: boolean }
+export interface NetHistory {
+  range: 'day' | 'week' | 'month';
+  step: number;
+  points: NetPoint[];
+  outages: Outage[];
+  measured: number;
+  uptime: number | null;
+  avg: number | null;
+  worst: number | null;
 }
 
 export interface Internet {

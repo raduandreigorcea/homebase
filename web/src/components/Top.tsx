@@ -4,7 +4,7 @@ import type { HbEvent } from '../api';
 import { Gauge, NetChart } from '../charts';
 import { bytes, color, dur, hhmm } from '../format';
 import { BatteryIcon, WifiIcon } from '../icons';
-import { offline, netSpeedOpen, state } from '../store';
+import { historyOpen, offline, netSpeedOpen, state } from '../store';
 
 export function Header() {
   const s = state.value;
@@ -17,9 +17,13 @@ export function Header() {
     <header>
       <div class="brand">
         <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#121820" stroke="#232d39" /><path d="M8 17l8-7 8 7v7H8z" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linejoin="round" /></svg>
-        <div><h1>Homebase</h1><p>Your home control panel</p></div>
+        <div><h1>Homebase</h1><p title="This laptop's address on your network">{s?.netbook?.ip || '\u00a0'}</p></div>
       </div>
-      <div class="net" title={title}>{s && <NetChart data={data} ok={n?.online !== false} />}</div>
+      <div class="net" title={title ? title + ' · click for history' : ''} role="button" tabIndex={0}
+           onClick={() => { if (s) historyOpen.value = true; }}
+           onKeyDown={e => { if (s && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); historyOpen.value = true; } }}>
+        {s && <NetChart data={data} ok={n?.online !== false} />}
+      </div>
       <Clock />
     </header>
   );

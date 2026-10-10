@@ -31,6 +31,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import identify as idf
+import nethistory
 import netspeed
 import remote
 
@@ -43,6 +44,7 @@ ASSET_TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; chars
 DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "homebase"
 DATA.mkdir(parents=True, exist_ok=True)
 remote.init(DATA)
+nethistory.init(DATA)
 PORT = 8800
 AGENT_PORT = 8801  # listens on the LAN, only for PC agents (install + push), nothing else
 AGENTS_ENABLED = True  # Windows PCs send their stats here; the port only serves install + push (token-protected)
@@ -223,6 +225,17 @@ def hwmon(name):
     return None
 
 
+def local_ip():
+    """This laptop's address on the home network: the one it would use to reach the internet.
+    (A UDP "connect" sends nothing; it only picks the route.)"""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sk:
+            sk.connect(("1.1.1.1", 80))
+            return sk.getsockname()[0]
+    except OSError:
+        return None
+
+
 class Netbook:
     def __init__(self):
         self.prev_cpu = None
@@ -316,6 +329,7 @@ class Netbook:
             "disk": self.disk(),
             "uptime": uptime,
             "kernel": os.uname().release,
+            "ip": local_ip(),
         }
 
 
@@ -464,6 +478,7 @@ def sampler():
             last_boot, last_mono = boot, mono
             if slept > 5:
                 woke_at = mono
+                nethistory.asleep()
                 fails.clear()
                 net_fails = 0
                 with lock:
@@ -511,6 +526,8 @@ def sampler():
                             "ssid": s["net"].get("ssid")}
                 if waking and ilat is None:
                     internet = None
+                if internet:
+                    nethistory.record(ilat, internet["online"])
 
             changes = []
             with lock:
@@ -1386,6 +1403,9 @@ class Handler(BaseHTTPRequestHandler):
             self.term_stream(self.path.split("/")[3])
         elif self.path == "/api/netspeed":  # polled fast while the internet speed test runs
             self.send(200, netspeed.snapshot())
+        elif self.path.startswith("/api/nethistory"):  # the internet over the last day / week / month
+            which = (parse_qs(urlparse(self.path).query).get("range") or ["day"])[0]
+            self.send(200, nethistory.summary(which))
         elif self.path == "/api/devspeed":  # same, for the speed test to a device
             with devspeed_lock:
                 snap = dict(devspeed)

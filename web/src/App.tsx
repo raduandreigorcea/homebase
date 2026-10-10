@@ -3,12 +3,13 @@
 import { useEffect } from 'preact/hooks';
 import { DeviceCard } from './components/DeviceCard';
 import { DeviceScreen } from './components/DeviceScreen';
+import { InternetHistory } from './components/InternetHistory';
 import { Discovered } from './components/Discovered';
 import { Palette } from './components/Palette';
 import { SpeedTest } from './components/SpeedTest';
 import { loadXterm, TerminalWindow } from './components/TerminalWindow';
 import { Events, Header, LaptopCard } from './components/Top';
-import { detailId, dialogsOpen, paletteOpen, poll, netSpeedOpen, state, terminal } from './store';
+import { detailId, dialogsOpen, historyOpen, netSpeedOpen, paletteOpen, poll, state, terminal } from './store';
 import { ChartTip, Dialogs, Toast } from './ui';
 
 function Devices() {
@@ -43,6 +44,7 @@ function useKeys() {
       if (terminal.value) return;
       if (e.key === 'Escape') {
         if (netSpeedOpen.value) netSpeedOpen.value = false;
+        else if (historyOpen.value) historyOpen.value = false;
         else if (detailId.value) detailId.value = null;
         return;
       }
@@ -83,6 +85,7 @@ export function App() {
       </main>
       <footer>Updates every 2 seconds · runs locally on this computer · press / for commands</footer>
       {detailId.value && <DeviceScreen />}
+      {historyOpen.value && <InternetHistory />}
       {netSpeedOpen.value && <SpeedTest />}
       {terminal.value && <TerminalWindow />}
       {paletteOpen.value && <Palette />}
