@@ -86,20 +86,18 @@ function hoverProps(data: Series, label: string, unit: string, inset = 0): JSX.S
   };
 }
 
-/** A stretch where nothing answered (internet down, device gone): red dots over the whole height,
- *  from the last answer to the next. Not a line at some height: low on these charts means fast,
- *  and there's no value to show. */
-function DownZone({ a, b, top, bottom }: { a: number; b: number; top: number; bottom: number }) {
-  const rows = [];
-  for (let yy = top + 3; yy <= bottom - 1; yy += 6) rows.push(yy);
-  return <g>{rows.map((yy, k) => <line key={k} x1={(a + (k % 2) * 2.5).toFixed(1)} x2={b.toFixed(1)} y1={yy} y2={yy}
-    stroke="var(--red)" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="0 5" opacity=".75" />)}</g>;
-}
+const CHECK_EVERY = 4;  // seconds between checks, for how long a stretch of missed ones lasted
 
-/** Every stretch of missed answers after the history starts, as a DownZone. isDown can narrow which
- *  gaps count (the internet history: not the time the laptop was asleep). */
-function DownMarks({ vals, x, right, top, bottom, isDown = () => true }:
-  { vals: Series; x: (i: number) => number; right: number; top: number; bottom: number; isDown?: (i: number) => boolean }) {
+/** "26 s", "4 min", "1.5 h". */
+const fmtShort = (s: number) => s < 60 ? `${Math.max(1, Math.round(s))} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
+
+/** Where nothing answered (internet down, device gone): a grey dotted bridge from the last answer to the
+ *  next one (on to the right edge while it's still down), with a red dot and how long it lasted above it.
+ *  The line stays one piece, and the dots say there's no data there. isDown can narrow which gaps count
+ *  (the internet history: not the time the laptop was asleep); label gives the text, or none on small charts. */
+function DownMarks({ vals, x, y, right, isDown = () => true, label }:
+  { vals: Series; x: (i: number) => number; y: (v: number) => number; right: number;
+    isDown?: (i: number) => boolean; label?: (i: number, j: number) => string }) {
   const first = vals.findIndex(v => v != null);
   if (first < 0) return null;
   const out = [];
@@ -107,9 +105,18 @@ function DownMarks({ vals, x, right, top, bottom, isDown = () => true }:
     if (vals[i] != null || !isDown(i)) continue;
     let j = i;
     while (j < vals.length && vals[j] == null && isDown(j)) j++;
-    const a = vals[i - 1] != null ? x(i - 1) : x(i);
-    const b = j < vals.length && vals[j] != null ? x(j) : j < vals.length ? x(j - 1) : right;
-    out.push(<DownZone key={i} a={a} b={Math.max(b, a + 3)} top={top} bottom={bottom} />);
+    const prev = vals[i - 1], next = j < vals.length ? vals[j] : null;
+    if (prev == null && next == null) { i = j; continue; }
+    const a: Pt = prev != null ? [x(i - 1), y(prev)] : [x(i), y(next!)];
+    const b: Pt = next != null ? [x(j), y(next)] : [j < vals.length ? x(j - 1) : right, a[1]];
+    const mx = (a[0] + b[0]) / 2, my = Math.max(5, Math.min(a[1], b[1]) - 9);
+    const text = label?.(i, j);
+    out.push(<g key={i}>
+      <line x1={a[0].toFixed(1)} y1={a[1].toFixed(1)} x2={b[0].toFixed(1)} y2={b[1].toFixed(1)}
+            stroke="var(--dim)" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="0.1 4.5" />
+      <circle cx={mx.toFixed(1)} cy={my.toFixed(1)} r="3" fill="var(--red)" />
+      {text && <text x={(mx + 6).toFixed(1)} y={(my + 3.5).toFixed(1)} fill="var(--red)" font-size="10" font-weight="600">{text}</text>}
+    </g>);
     i = j;
   }
   return <>{out}</>;
@@ -125,7 +132,7 @@ export function Spark({ data }: { data: Series }) {
     <svg ref={ref} class="spark" viewBox={`0 0 ${w || 300} ${h || 30}`} preserveAspectRatio="none" aria-label="Response time, last 3 minutes"
          {...hoverProps(data, 'Response', ' ms')}>
       {w > 0 && <>
-        <DownMarks vals={vals} x={x} right={w} top={0} bottom={h} />
+        <DownMarks vals={vals} x={x} y={y} right={w} />
         <LineWithFill segs={segmentsOf(vals, (v, i) => [x(i), y(v)])} base={h} col="var(--blue)" />
       </>}
     </svg>
@@ -158,7 +165,7 @@ export function NetChart({ data, ok }: { data: Series; ok: boolean }) {
       {w > 0 && <>
         {startX - pad > 2 && <line x1={pad} x2={startX.toFixed(1)} y1={(first < 0 ? h / 2 : y(data[first]!)).toFixed(1)} y2={(first < 0 ? h / 2 : y(data[first]!)).toFixed(1)}
                                    stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round" />}
-        <DownMarks vals={data} x={i => off + i * step} right={right} top={0} bottom={h} />
+        <DownMarks vals={data} x={i => off + i * step} y={y} right={right} label={(i, j) => fmtShort((j - i) * CHECK_EVERY)} />
         <LineWithFill segs={segs} base={h - pad} col={col} />
         {hv != null ? (() => {
           const hx = off + hover! * step, flip = hx > w - 60;
@@ -190,7 +197,7 @@ export function BigLatChart({ data }: { data: Series }) {
           return <g key={f}><line x1="0" x2={w} y1={gy} y2={gy} stroke="#1b2430" /><text x="2" y={gy - 4} fill="var(--dim)" font-size="10">{Math.round(top * f)} ms</text></g>;
         })}
         {startX > 4 && <line x1="0" x2={startX.toFixed(1)} y1={h - pad} y2={h - pad} stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="2 5" />}
-        <DownMarks vals={blipsAsSpikes(data, top)} x={i => off + i * step} right={w} top={pad} bottom={h - pad} />
+        <DownMarks vals={blipsAsSpikes(data, top)} x={i => off + i * step} y={y} right={w} label={(i, j) => fmtShort((j - i) * CHECK_EVERY)} />
         <LineWithFill segs={segmentsOf(blipsAsSpikes(data, top), (v, i) => [off + i * step, y(v)])} base={h - pad} col="var(--blue)" />
         {data.map((v, i) => v != null && v > top &&
           <text key={i} x={(off + i * step).toFixed(1)} y="10" text-anchor="middle" fill="var(--amber)" font-size="10">↑{Math.round(v)}</text>)}
@@ -231,8 +238,6 @@ export function Gauge({ pct, text, col }: { pct: number; text: string; col: stri
     </svg>
   );
 }
-
-const fmtShort = (s: number) => s < 60 ? `${Math.max(1, Math.round(s))} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
 
 /** The internet over a day, week or month: average response time per point, outages as red bands,
  *  and gaps where the laptop was off or asleep. */
@@ -282,13 +287,14 @@ export function HistoryChart({ points, outages, step, range }: { points: NetPoin
           const gy = pad + (1 - f) * (ch - 2 * pad);
           return <g key={f}><line x1="0" x2={w} y1={gy} y2={gy} stroke="#1b2430" /><text x="2" y={gy - 4} fill="var(--dim)" font-size="10">{Math.round(top * f)} ms</text></g>;
         })}
-        <DownMarks vals={data} x={i => i * colW + colW / 2} right={(points.length - 1) * colW + colW / 2} top={pad} bottom={ch - pad}
-                   isDown={i => !!points[i].loss} />
+        <DownMarks vals={data} x={i => i * colW + colW / 2} y={y} right={(points.length - 1) * colW + colW / 2}
+                   isDown={i => !!points[i].loss} />  {/* no text: outages can sit close together here; the tooltip has it */}
         {outages.map((o, i) => {
-          // At least 6 px wide, so a 30-second outage in a month still shows.
-          let a = Math.max(0, x(o.start)), b = Math.min(w, x(o.end));
-          if (b - a < 6) { const c = (a + b) / 2; a = c - 3; b = c + 3; }
-          return b > 0 && a < w && <DownZone key={i} a={a} b={b} top={pad} bottom={ch - pad} />;
+          // Inside a time that otherwise answered (the line isn't broken there): a red dot over it.
+          const c = (x(o.start) + x(o.end)) / 2;
+          const pi = Math.min(points.length - 1, Math.max(0, Math.floor(c / colW)));
+          if (c < 0 || c > w || points[pi]?.avg == null) return null;
+          return <circle key={i} cx={c.toFixed(1)} cy={Math.max(5, y(points[pi].avg!) - 9).toFixed(1)} r="3" fill="var(--red)" />;
         })}
         <LineWithFill segs={segmentsOf(data, (v, i) => [i * colW + colW / 2, y(v)])} base={ch - pad} col="var(--blue)" />
         {ticks.map(([t, label]) => {
