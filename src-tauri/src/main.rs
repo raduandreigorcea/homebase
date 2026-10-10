@@ -6,9 +6,9 @@ use tauri::{WebviewUrl, WebviewWindowBuilder};
 const PANEL: &str = "http://127.0.0.1:8800/";
 
 fn main() {
-    // GPU rendering has crashed this laptop before, so WebKitGTK draws in software,
-    // unless started with HOMEBASE_GPU=1 (to try hardware acceleration).
-    if std::env::var("HOMEBASE_GPU").as_deref() != Ok("1") {
+    // The window uses the GPU. If that ever causes trouble (it froze this laptop once, with a browser),
+    // start it with HOMEBASE_SOFTWARE=1 to draw in software instead.
+    if std::env::var("HOMEBASE_SOFTWARE").as_deref() == Ok("1") {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
     }
