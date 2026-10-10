@@ -1,7 +1,7 @@
 // What the buttons, the device screen and the / palette do. One place, so they all behave the same.
 import { enc, post, type Device } from './api';
 import { USER_OK } from './format';
-import { detailId, localPower, poll, powerOf, speedTarget, state, terminal } from './store';
+import { detailId, localPower, poll, powerOf, speedStart, state, terminal } from './store';
 import { dialog, toast, toastProgress, type Field } from './ui';
 
 const NO_SERVER = 'Error: the server isn\'t responding';
@@ -44,7 +44,7 @@ export async function doAction(act: string, d: Device | undefined) {
     case 'prepare': return preparePc(d);
     case 'update': return openTerminal(d, 'update');
     case 'reboot': case 'poweroff': return power(d, act);
-    case 'speed': speedTarget.value = d; return;
+    case 'speed': speedStart.value = d.id; detailId.value = d.id; return;
     case 'send': return pickFiles(d);
     case 'connect': return connect(d);
     case 'wake': return wake(d);

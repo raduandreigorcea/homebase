@@ -1,5 +1,5 @@
 // The whole page: top bar, device cards, what's on the network, this laptop, and the windows
-// that open on top (device screen, speed test, terminal, palette, dialogs).
+// that open on top (device screen, internet speed test, terminal, palette, dialogs).
 import { useEffect } from 'preact/hooks';
 import { DeviceCard } from './components/DeviceCard';
 import { DeviceScreen } from './components/DeviceScreen';
@@ -8,7 +8,7 @@ import { Palette } from './components/Palette';
 import { SpeedTest } from './components/SpeedTest';
 import { loadXterm, TerminalWindow } from './components/TerminalWindow';
 import { Events, Header, LaptopCard } from './components/Top';
-import { detailId, dialogsOpen, paletteOpen, poll, speedTarget, state, terminal } from './store';
+import { detailId, dialogsOpen, paletteOpen, poll, netSpeedOpen, state, terminal } from './store';
 import { ChartTip, Dialogs, Toast } from './ui';
 
 function Devices() {
@@ -42,7 +42,7 @@ function useKeys() {
       // The terminal needs every key (Esc included) for the shell.
       if (terminal.value) return;
       if (e.key === 'Escape') {
-        if (speedTarget.value) speedTarget.value = null;
+        if (netSpeedOpen.value) netSpeedOpen.value = false;
         else if (detailId.value) detailId.value = null;
         return;
       }
@@ -68,7 +68,6 @@ export function App() {
   // Load the terminal in the background once there's something to SSH into, so the first click is instant.
   const hasSsh = !!s?.devices.some(d => d.ssh);
   useEffect(() => { if (hasSsh) { const t = setTimeout(() => loadXterm().catch(() => {}), 3000); return () => clearTimeout(t); } }, [hasSsh]);
-  const target = speedTarget.value;
   return (
     <>
       <Header />
@@ -84,7 +83,7 @@ export function App() {
       </main>
       <footer>Updates every 2 seconds · runs locally on this computer · press / for commands</footer>
       {detailId.value && <DeviceScreen />}
-      {target && <SpeedTest key={target === 'internet' ? 'internet' : target.id} />}
+      {netSpeedOpen.value && <SpeedTest />}
       {terminal.value && <TerminalWindow />}
       {paletteOpen.value && <Palette />}
       <Dialogs />

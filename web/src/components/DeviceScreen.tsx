@@ -9,6 +9,7 @@ import { ago, bytes, color, dur, evTime } from '../format';
 import { Close, Edit, KindIcon } from '../icons';
 import { detailId, deviceById, powerOf, speeds, state } from '../store';
 import { POWER_TXT, TvBlock } from './DeviceCard';
+import { DeviceSpeed } from './SpeedTest';
 
 function Tile({ label, value, unit, children }: { label: string; value: string | number; unit: string; children?: ComponentChildren }) {
   return <div class="dv-tile"><span>{label}</span><b>{value}{value !== '–' && <small>{unit}</small>}</b>{children}</div>;
@@ -96,11 +97,7 @@ function Side({ d }: { d: Device }) {
         </div>
       </div>}
       {d.key && <div class="dv-sec"><h4>Speed to it <span>{sp?.t ? ago(sp.t) : ''}</span></h4>
-        <div class="dv-speed">
-          {sp ? <div class="nums"><div><b>{sp.down}</b><span>↓ download Mbit/s</span></div><div><b>{sp.up}</b><span>↑ upload Mbit/s</span></div></div>
-            : <p class="dv-note">How fast data moves between this laptop and it, over Wi-Fi.</p>}
-          <button disabled={!online} onClick={() => doAction('speed', d)}>{sp ? 'Measure again' : 'Measure'}</button>
-        </div>
+        <DeviceSpeed d={d} online={!!online} />
       </div>}
       {d.ssh && !d.key ? <p class="dv-note">Type the SSH password in ✎ to get stats, files and a speed test here.</p>
         : !d.ssh && d.kind !== 'tv' && !d.windows && <p class="dv-note">Set an SSH user and password in ✎ to control it from here.</p>}

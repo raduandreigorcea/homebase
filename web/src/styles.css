@@ -307,12 +307,12 @@
   .dv-drop b { display: block; color: var(--text); }
   .dv-drop small { color: var(--dim); }
   .dv-drop:hover, .dv-drop.drop { border-color: var(--green); background: rgba(52, 211, 153, .06); }
-  .dv-speed { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; }
-  .dv-speed .nums { display: flex; gap: 18px; font-variant-numeric: tabular-nums; }
-  .dv-speed .nums div { display: grid; }
-  .dv-speed .nums b { font-size: 20px; font-weight: 700; }
-  .dv-speed .nums span { color: var(--dim); font-size: 11px; }
-  .dv-speed button { justify-self: start; padding: 7px 12px; }
+  .dv-speed { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 12px 12px; display: grid; gap: 12px; justify-items: center; }
+  .dv-speed .st-gauge { width: min(100%, 230px); }
+  .dv-speed .st-now { margin-top: -4px; }
+  .dv-speed .st-res { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+  .dv-speed .st-res div { background: var(--bg); }
+  .dv-speed .st-res button { padding: 0 14px; }
   .dv-note { color: var(--dim); font-size: 12px; margin: 0; }
   .dv-foot { display: flex; gap: 16px; flex-wrap: wrap; padding: 10px 18px; border-top: 1px solid var(--line); color: var(--dim); font-size: 11px; }
   .dv-foot kbd { font: inherit; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }

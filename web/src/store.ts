@@ -6,10 +6,12 @@ export const state = signal<State | null>(null);
 export const lastOk = signal(0);  // when the server last answered
 export const offline = signal(false);  // it hasn't answered for a while
 
-// Which windows are open. One device screen at a time; the terminal and speed test sit on top of it.
+// Which windows are open. One device screen at a time; the terminal and internet speed test sit on top of it.
 export const detailId = signal<string | null>(null);
 export const paletteOpen = signal(false);
-export const speedTarget = signal<Device | 'internet' | null>(null);
+export const netSpeedOpen = signal(false);
+/** A device whose screen should start a speed test as it opens (asked from the palette or a card). */
+export const speedStart = signal<string | null>(null);
 export const terminal = signal<{ dev: Device; mode: string } | null>(null);
 export const dialogsOpen = signal(0);
 
@@ -25,7 +27,7 @@ export const deviceById = (id: string | null) => devices.value.find(d => d.id ==
 
 /** Anything open that a page reload would interrupt. */
 export const busyWithSomething = () =>
-  !!(detailId.value || paletteOpen.value || speedTarget.value || terminal.value || dialogsOpen.value);
+  !!(detailId.value || paletteOpen.value || netSpeedOpen.value || terminal.value || dialogsOpen.value);
 
 let pageVersion: number | null = null;
 

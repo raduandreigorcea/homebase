@@ -1,10 +1,11 @@
-// Speed test with a gauge, like speedtest.net: the internet one (against Cloudflare) or to a device
-// (over SSH). The server measures; this polls it four times a second while it runs.
+// Speed tests with a gauge, like speedtest.net: the internet one (against Cloudflare) in its own window,
+// and the one to a device (over SSH) inside the device's screen. The server measures; this polls it
+// four times a second while it runs.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { enc, getJSON, post, type Device, type SpeedRun } from '../api';
 import { hhmm, mbps } from '../format';
 import { Close } from '../icons';
-import { speeds, speedTarget } from '../store';
+import { netSpeedOpen, speeds, speedStart } from '../store';
 
 // Gauge scale: speeds people actually have, spread evenly (0 · 5 · 10 · 50 · 100 · 250 · 500 · 1000 Mbit/s).
 const TICKS = [0, 5, 10, 50, 100, 250, 500, 1000];
@@ -58,7 +59,7 @@ function Dial({ run, big }: { run: SpeedRun; big: string }) {
       {deg > -119.5 && <path d={arc(-120, deg, 160)} fill="none" stroke={col} stroke-width="18" stroke-linecap="round" />}
       {TICKS.map((t, i) => {
         const [x, y] = point(-SWEEP / 2 + i * SWEEP / (TICKS.length - 1), 130);
-        return <text key={t} x={x.toFixed(1)} y={(y + 4).toFixed(1)} text-anchor="middle" fill="var(--dim)" font-size="12">{t}</text>;
+        return <text key={t} x={x.toFixed(1)} y={(y + 4).toFixed(1)} text-anchor="middle" fill="var(--dim)" font-size="15">{t}</text>;
       })}
       <line x1="190" y1="190" x2={nx} y2={ny} transform={`rotate(${deg.toFixed(2)} 190 190)`} stroke="var(--text)" stroke-width="3" stroke-linecap="round" />
       <circle cx="190" cy="190" r="7" fill="var(--text)" />
@@ -69,9 +70,8 @@ function Dial({ run, big }: { run: SpeedRun; big: string }) {
 
 const running = (r: SpeedRun) => ['ping', 'download', 'upload'].includes(r.phase);
 
-export function SpeedTest() {
-  const target = speedTarget.value!;
-  const device: Device | null = target === 'internet' ? null : target;
+/** One test's progress, polled from the server. Picks up a run already going (or finished) when it mounts. */
+function useSpeedRun(device: Device | null, autostart: boolean) {
   const [run, setRun] = useState<SpeedRun>({ phase: 'idle' });
   const timer = useRef<ReturnType<typeof setInterval>>();
 
@@ -91,43 +91,65 @@ export function SpeedTest() {
     setRun({ phase: device ? 'download' : 'ping', dev: device?.id, live: 0 });
     watch();
   };
-
-  // The device screen's Measure button starts right away; the internet test waits for Start.
   useEffect(() => {
-    if (device) start(); else poll().then(() => watch());
+    if (autostart) start(); else poll().then(() => watch());
     return () => clearInterval(timer.current);
   }, []);
+  return { run, start, busy: running(run) };
+}
 
-  const busy = running(run);
-  const big = run.phase === 'ping' ? '…' : busy ? mbps(run.live) : run.phase === 'done' ? mbps(run.down) : '–';
-  const label = ({ ping: 'Measuring ping…', download: 'Download · Mbit/s', upload: 'Upload · Mbit/s', done: 'Download · Mbit/s', error: run.error } as Record<string, string | undefined>)[run.phase]
-    || (device ? `Press Start to measure the speed to ${device.name}` : 'Press Start to measure your internet');
-  const cell = (on: string, name: string, v: string, unit: string) => <div class={on}><span>{name}</span><b>{v}<small>{unit}</small></b></div>;
+const bigOf = (run: SpeedRun) => run.phase === 'ping' ? '…' : running(run) ? mbps(run.live) : run.phase === 'done' ? mbps(run.down) : '–';
+const PHASE_LABEL: Record<string, string> = { ping: 'Measuring ping…', download: 'Download · Mbit/s', upload: 'Upload · Mbit/s', done: 'Download · Mbit/s' };
+const cell = (on: string, name: string, v: string, unit: string) => <div class={on}><span>{name}</span><b>{v}<small>{unit}</small></b></div>;
+
+/** The "Speed to it" box in a device's screen. Starts on its own when asked from the palette or a card. */
+export function DeviceSpeed({ d, online }: { d: Device; online: boolean }) {
+  const auto = speedStart.value === d.id;
+  useEffect(() => { if (auto) speedStart.value = null; }, []);
+  const { run, start, busy } = useSpeedRun(d, auto && online);
+  const label = run.phase === 'error' ? run.error : PHASE_LABEL[run.phase] || 'How fast data moves between this laptop and it';
+  const val = (v: number | null | undefined, live: boolean) => v != null ? mbps(v) : live ? mbps(run.live) : '–';
+  return (
+    <div class="dv-speed">
+      <Dial run={run} big={bigOf(run)} />
+      <div class="st-now">{label}</div>
+      <div class="st-res">
+        {cell(run.phase === 'download' ? 'on' : '', '↓ Down', val(run.down, run.phase === 'download'), 'Mbit/s')}
+        {cell(run.phase === 'upload' ? 'on up' : '', '↑ Up', val(run.up, run.phase === 'upload'), 'Mbit/s')}
+        <button class="primary" disabled={busy || !online} onClick={start}>{busy ? '…' : run.phase === 'done' || run.phase === 'error' ? 'Again' : 'Measure'}</button>
+      </div>
+    </div>
+  );
+}
+
+/** The internet speed test, in its own window. Waits for Start. */
+export function SpeedTest() {
+  const { run, start, busy } = useSpeedRun(null, false);
+  const label = run.phase === 'error' ? run.error : PHASE_LABEL[run.phase] || 'Press Start to measure your internet';
   const when = run.phase === 'done' && run.finished ? `Measured ${hhmm(new Date(run.finished * 1000))}. ` : '';
-  const close = () => { speedTarget.value = null; };
+  const close = () => { netSpeedOpen.value = false; };
 
   return (
     <div class="dev-modal st-modal" onClick={e => { if (e.target === e.currentTarget) close(); }}>
       <div class="dev-win st-win" role="dialog" aria-modal="true" aria-labelledby="st-title">
         <div class="dv-head">
           <div class="dv-who">
-            <h3 id="st-title">{device ? `Speed to ${device.name}` : 'Internet speed'}</h3>
-            <p>{device ? 'Between this laptop and it, over your home network' : `Measured against Cloudflare's speed test servers${run.server ? ' in ' + run.server : ''}`}</p>
+            <h3 id="st-title">Internet speed</h3>
+            <p>Measured against Cloudflare's speed test servers{run.server ? ' in ' + run.server : ''}</p>
           </div>
           <span class="dv-tools"><button class="icon-btn" title="Close" onClick={close}><Close /></button></span>
         </div>
         <div class="st-body">
-          <Dial run={run} big={big} />
+          <Dial run={run} big={bigOf(run)} />
           <div class="st-now">{label}</div>
           <div class="st-res">
-            {cell(run.phase === 'ping' ? 'on' : '', device ? 'Response' : 'Ping', run.ping != null ? String(Math.round(run.ping)) : '–', 'ms')}
-            {!device && cell('', 'Jitter', run.jitter != null ? String(Math.round(run.jitter)) : '–', 'ms')}
+            {cell(run.phase === 'ping' ? 'on' : '', 'Ping', run.ping != null ? String(Math.round(run.ping)) : '–', 'ms')}
+            {cell('', 'Jitter', run.jitter != null ? String(Math.round(run.jitter)) : '–', 'ms')}
             {cell(run.phase === 'download' ? 'on' : '', '↓ Download', run.down != null ? mbps(run.down) : run.phase === 'download' ? mbps(run.live) : '–', 'Mbit/s')}
             {cell(run.phase === 'upload' ? 'on up' : '', '↑ Upload', run.up != null ? mbps(run.up) : run.phase === 'upload' ? mbps(run.live) : '–', 'Mbit/s')}
           </div>
           <button class="primary" disabled={busy} onClick={start}>{busy ? 'Measuring…' : run.phase === 'done' || run.phase === 'error' ? 'Run again' : 'Start'}</button>
-          <div class="st-foot">{device ? when + 'Data goes over SSH, so a slow device (like a Pi Zero) can be the limit rather than your Wi-Fi.'
-            : when || 'Uses about as much data as a speedtest.net run.'}</div>
+          <div class="st-foot">{when || 'Uses about as much data as a speedtest.net run.'}</div>
         </div>
       </div>
     </div>

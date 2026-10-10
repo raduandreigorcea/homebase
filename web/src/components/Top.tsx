@@ -4,7 +4,7 @@ import type { HbEvent } from '../api';
 import { Gauge, NetChart } from '../charts';
 import { bytes, color, dur, hhmm } from '../format';
 import { BatteryIcon, WifiIcon } from '../icons';
-import { offline, speedTarget, state } from '../store';
+import { offline, netSpeedOpen, state } from '../store';
 
 export function Header() {
   const s = state.value;
@@ -58,7 +58,7 @@ export function LaptopCard() {
         <span class="bat-info">
           {b && <><BatteryIcon pct={b.pct} status={b.status} /><span>Battery <b>{b.pct}%</b> · {({ Charging: 'charging', Discharging: 'on battery', Full: 'full', 'Not charging': 'plugged in' } as Record<string, string>)[b.status] || b.status}</span></>}
         </span>
-        <span class={`bat-net${n && !n.online ? ' off' : ''}`} title="Test your internet speed" onClick={() => { speedTarget.value = 'internet'; }}>
+        <span class={`bat-net${n && !n.online ? ' off' : ''}`} title="Test your internet speed" onClick={() => { netSpeedOpen.value = true; }}>
           {s && <WifiIcon signal={nb?.net.signal} ok={n == null || n.online} />}
           <span>Internet <b>{n == null ? '…' : !n.online ? `down for ${dur(s!.now - (n.down_since || s!.now))}` : n.latency != null ? Math.round(n.latency) + ' ms' : 'connected'}</b></span>
         </span>

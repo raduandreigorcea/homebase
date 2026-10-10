@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { post } from '../api';
 import { actionFits, deviceActions, doAction } from '../actions';
 import { norm } from '../format';
-import { paletteOpen, speedTarget, state } from '../store';
+import { paletteOpen, netSpeedOpen, state } from '../store';
 import { toast } from '../ui';
 
 interface Cmd { text: string; desc: string; run?: () => void; fill?: string }
@@ -12,7 +12,7 @@ interface Cmd { text: string; desc: string; run?: () => void; fill?: string }
 function commands(): Cmd[] {
   const out: Cmd[] = [
     { text: 'scan', desc: 'Look for new devices', run: () => { post('/api/scan').then(() => toast('Searching the network…', 'info')); } },
-    { text: 'speedtest', desc: 'Test your internet speed', run: () => { speedTarget.value = 'internet'; } },
+    { text: 'speedtest', desc: 'Test your internet speed', run: () => { netSpeedOpen.value = true; } },
   ];
   for (const d of state.value?.devices || []) {
     // Only what makes sense right now (an off device can only be woken or edited).
