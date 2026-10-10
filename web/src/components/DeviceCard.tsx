@@ -143,7 +143,7 @@ export function DeviceCard({ d, st }: { d: Device; st?: Status }) {
           <div><span>Response</span>{noNetwork.value ? <b>–</b> : <TBar />}</div>
           <div><span>On for</span>{noNetwork.value ? <b>–</b> : <TBar />}</div>
         </div>
-        {d.probe_port && !d.dlna && <svg class="spark" />}
+        {d.probe_port && !d.dlna && (noNetwork.value ? <Spark data={lat} /> : <svg class="spark" />)}
       </>}
       {tvActive ? <TvBlock d={d} tv={tv} />
         : online && <>{stats && <StatsRow x={stats} />}{d.probe_port && !tv && <Spark data={lat} />}</>}

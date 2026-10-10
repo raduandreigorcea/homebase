@@ -533,7 +533,7 @@ def sampler():
                             "ssid": s["net"].get("ssid")}
                 if waking and ilat is None:
                     internet = None
-                if internet:
+                if internet and lan:  # without a network of our own it's us that's offline, not the internet
                     nethistory.record(ilat, internet["online"])
 
             changes = []
@@ -553,6 +553,8 @@ def sampler():
                         if "since" in prev:
                             v["since"] = prev["since"]
                         state["devices"][k] = v
+                        if not lan:
+                            push(f"lat:{k}", None)  # no network here: the chart gets a gap instead of freezing
                         continue
                     # After standby the state is unknown (None) but "since" survives,
                     # so a device that stayed on keeps its uptime.
