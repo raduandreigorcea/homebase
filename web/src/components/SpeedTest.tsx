@@ -29,14 +29,21 @@ function arc(from: number, to: number, r: number): string {
 
 /** Eases toward the target angle every frame, so the needle and the coloured arc move together and smoothly
  *  between the four-times-a-second readings. */
-function useGlide(target: number): number {
+function useGlide(target: number, phase: string): number {
   const [shown, setShown] = useState(target);
   const cur = useRef(target);
+  const lastPhase = useRef(phase);
   useEffect(() => {
+    // A new direction starts from zero straight away: sliding back from the last reading would fold the
+    // whole arc up in a quarter of a second.
+    if (lastPhase.current !== phase) {
+      lastPhase.current = phase;
+      if (phase === 'download' || phase === 'upload') { cur.current = target; setShown(target); }
+    }
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) { cur.current = target; setShown(target); return; }
     let raf = 0, last = performance.now();
     const step = (now: number) => {
-      cur.current += (target - cur.current) * (1 - Math.exp(-(now - last) / 240));
+      cur.current += (target - cur.current) * (1 - Math.exp(-(now - last) / 330));
       last = now;
       if (Math.abs(target - cur.current) < 0.1) cur.current = target;
       setShown(cur.current);
@@ -44,7 +51,7 @@ function useGlide(target: number): number {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [target]);
+  }, [target, phase]);
   return shown;
 }
 
@@ -52,7 +59,7 @@ function useGlide(target: number): number {
 function Dial({ run, big }: { run: SpeedRun; big: string }) {
   const value = run.phase === 'download' || run.phase === 'upload' ? run.live : run.phase === 'done' ? run.down ?? 0 : 0;
   const col = run.phase === 'upload' ? 'var(--violet)' : 'var(--blue)';
-  const deg = useGlide(angle((value ?? 0) / 8));  // the server measures Mbit/s; the gauge is in MB/s
+  const deg = useGlide(angle((value ?? 0) / 8), run.phase);  // the server measures Mbit/s; the gauge is in MB/s
   const [nx, ny] = point(0, 112);
   return (
     <svg class="st-gauge" viewBox="0 0 380 285" aria-hidden="true">
