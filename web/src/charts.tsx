@@ -92,7 +92,7 @@ const CHECK_EVERY = 4;  // seconds between checks, for how long a stretch of mis
 const fmtShort = (s: number) => s < 60 ? `${Math.max(1, Math.round(s))} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
 
 /** Where nothing answered (internet down, device gone): a grey dotted bridge from the last answer to the
- *  next one (on to the right edge while it's still down), with a red dot and how long it lasted above it.
+ *  next one (on to the right edge while it's still down), with how long it lasted above it.
  *  The line stays one piece, and the dots say there's no data there. isDown can narrow which gaps count
  *  (the internet history: not the time the laptop was asleep); label gives the text, or none on small charts. */
 function DownMarks({ vals, x, y, right, isDown = () => true, label }:
@@ -114,8 +114,7 @@ function DownMarks({ vals, x, y, right, isDown = () => true, label }:
     out.push(<g key={i}>
       <line x1={a[0].toFixed(1)} y1={a[1].toFixed(1)} x2={b[0].toFixed(1)} y2={b[1].toFixed(1)}
             stroke="var(--dim)" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="0.1 4.5" />
-      <circle cx={mx.toFixed(1)} cy={my.toFixed(1)} r="3" fill="var(--red)" />
-      {text && <text x={(mx + 6).toFixed(1)} y={(my + 3.5).toFixed(1)} fill="var(--red)" font-size="10" font-weight="600">{text}</text>}
+      {text && <text x={mx.toFixed(1)} y={(my + 3.5).toFixed(1)} text-anchor="middle" fill="var(--red)" font-size="10" font-weight="600">{text}</text>}
     </g>);
     i = j;
   }
