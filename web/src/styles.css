@@ -310,11 +310,11 @@
   .dv-drop b { display: block; color: var(--text); }
   .dv-drop small { color: var(--dim); }
   .dv-drop:hover, .dv-drop.drop { border-color: var(--green); background: rgba(52, 211, 153, .06); }
-  .dv-speed { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; justify-items: center; }
+  .dv-speed { display: grid; gap: 10px; justify-items: center; }  /* no box of its own: sits straight under the heading */
   .dv-speed .st-gauge { width: min(100%, 200px); }
   .dv-speed .st-now { margin-top: -4px; }
   .dv-speed .st-res { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 96px; }  /* fixed: "Measure", "…" and "Again" don't move it */
-  .dv-speed .st-res div { background: var(--bg); }
+  .dv-speed .st-res div { background: var(--panel); }
   .dv-speed .st-res button { padding: 0; justify-content: center; text-align: center; }
   .dv-note { color: var(--dim); font-size: 12px; margin: 0; }
   .dv-foot { display: flex; gap: 16px; flex-wrap: wrap; padding: 10px 18px; border-top: 1px solid var(--line); color: var(--dim); font-size: 11px; }
