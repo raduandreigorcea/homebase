@@ -113,13 +113,31 @@ export function NetChart({ data, ok }: { data: Series; ok: boolean }) {
   const first = data.findIndex(v => v != null);
   const startX = first < 0 ? right : off + first * step;
   const hv = hover != null ? data[hover] : null;
+  // Runs of missed checks after the history starts: the internet didn't answer. Drawn red, from the
+  // last answer to the next one (or to the right edge if it's still down), so an outage reads as one.
+  const downRuns: [number, number][] = [];
+  for (let i = Math.max(first, 0); first >= 0 && i < data.length; i++) {
+    if (data[i] != null) continue;
+    let j = i;
+    while (j < data.length && data[j] == null) j++;
+    downRuns.push([off + (i - 1) * step, j < data.length ? off + j * step : right]);
+    i = j;
+  }
   return (
     <svg ref={ref} class="net-chart" viewBox={`0 0 ${w || 300} ${h || 38}`} preserveAspectRatio="none" role="img" aria-label="Response time to the internet"
-         onMouseMove={e => { const i = hoverIndex(e, data.length, pad); setHover(i >= 0 && i < data.length && data[i] != null ? i : null); }}
-         onMouseLeave={() => setHover(null)}>
+         onMouseMove={e => {
+           const i = hoverIndex(e, data.length, pad);
+           setHover(i >= 0 && i < data.length && data[i] != null ? i : null);
+           if (i >= 0 && i < data.length && data[i] == null && first >= 0 && i > first) showTip(e, 'Internet down: no answer'); else hideTip();
+         }}
+         onMouseLeave={() => { setHover(null); hideTip(); }}>
       {w > 0 && <>
         {startX - pad > 2 && <line x1={pad} x2={startX.toFixed(1)} y1={(first < 0 ? h / 2 : y(data[first]!)).toFixed(1)} y2={(first < 0 ? h / 2 : y(data[first]!)).toFixed(1)}
                                    stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round" />}
+        {downRuns.map(([a, b], k) => <g key={'d' + k}>
+          <rect x={a.toFixed(1)} y="0" width={Math.max(3, b - a).toFixed(1)} height={h} fill="var(--red)" opacity=".18" rx="2" />
+          <line x1={a.toFixed(1)} x2={b.toFixed(1)} y1={h - pad} y2={h - pad} stroke="var(--red)" stroke-width="2" stroke-linecap="round" />
+        </g>)}
         <LineWithFill segs={segs} base={h - pad} col={col} />
         {hv != null ? (() => {
           const hx = off + hover! * step, flip = hx > w - 60;
@@ -192,6 +210,8 @@ export function Gauge({ pct, text, col }: { pct: number; text: string; col: stri
   );
 }
 
+const fmtShort = (s: number) => s < 60 ? `${Math.max(1, Math.round(s))} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
+
 /** The internet over a day, week or month: average response time per point, outages as red bands,
  *  and gaps where the laptop was off or asleep. */
 export function HistoryChart({ points, outages, step, range }: { points: NetPoint[]; outages: Outage[]; step: number; range: string }) {
@@ -217,6 +237,11 @@ export function HistoryChart({ points, outages, step, range }: { points: NetPoin
       ticks.push([d.getTime() / 1000, d.toLocaleDateString('en-GB', range === 'week' ? { weekday: 'short' } : { day: 'numeric', month: 'short' })]);
   }
   const tipFor = (p: NetPoint) => {
+    const out = outages.filter(o => o.start < p.t + step && o.end > p.t);
+    const down = out.length ? ` · internet down ${out.map(o => fmtShort(o.end - o.start)).join(', ')}` : '';
+    return tipBase(p) + down;
+  };
+  const tipBase = (p: NetPoint) => {
     const when = new Date(p.t * 1000);
     const label = range === 'day' ? hhmm(when) : when.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + (range === 'week' ? ' ' + hhmm(when) : '');
     if (p.avg == null) return p.loss ? `${label}: down` : `${label}: not measured (laptop off or asleep)`;
@@ -235,9 +260,16 @@ export function HistoryChart({ points, outages, step, range }: { points: NetPoin
           const gy = pad + (1 - f) * (ch - 2 * pad);
           return <g key={f}><line x1="0" x2={w} y1={gy} y2={gy} stroke="#1b2430" /><text x="2" y={gy - 4} fill="var(--dim)" font-size="10">{Math.round(top * f)} ms</text></g>;
         })}
+        {points.map((p, i) => p.avg == null && p.loss
+          ? <rect key={'p' + i} x={(i * colW).toFixed(1)} y="0" width={colW.toFixed(1)} height={ch} fill="var(--red)" opacity=".28" /> : null)}
         {outages.map((o, i) => {
-          const a = Math.max(0, x(o.start)), b = Math.min(w, x(o.end));
-          return b > 0 && a < w && <rect key={i} x={a.toFixed(1)} y="0" width={Math.max(2, b - a).toFixed(1)} height={ch} fill="var(--red)" opacity=".28" />;
+          // At least 4 px, centred on the outage, so a 30-second outage in a month still shows.
+          let a = Math.max(0, x(o.start)), b = Math.min(w, x(o.end));
+          if (b - a < 4) { const c = (a + b) / 2; a = c - 2; b = c + 2; }
+          return b > 0 && a < w && <g key={i}>
+            <rect x={a.toFixed(1)} y="0" width={(b - a).toFixed(1)} height={ch} fill="var(--red)" opacity=".3" />
+            <rect x={a.toFixed(1)} y="0" width={(b - a).toFixed(1)} height="3" fill="var(--red)" />
+          </g>;
         })}
         <LineWithFill segs={segmentsOf(data, (v, i) => [i * colW + colW / 2, y(v)])} base={ch - pad} col="var(--blue)" />
         {ticks.map(([t, label]) => {
