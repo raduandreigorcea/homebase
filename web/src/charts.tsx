@@ -86,11 +86,11 @@ function hoverProps(data: Series, label: string, unit: string, inset = 0): JSX.S
   };
 }
 
-/** Where nothing answered (internet down, device gone), drawn red and joined to the line: from the last
- *  answer down to the floor, along it, and back up to the next answer (or on to the right edge while it's
- *  still down). Only after the history starts; isDown can narrow which gaps count (history: not "asleep"). */
-function DownMarks({ vals, x, y, floor, right, h, isDown = () => true }:
-  { vals: Series; x: (i: number) => number; y: (v: number) => number; floor: number; right: number; h: number; isDown?: (i: number) => boolean }) {
+/** Where nothing answered (internet down, device gone), drawn red and joined to the line: straight down
+ *  from the last answer to the floor, along it, and straight up at the next answer (or on to the right
+ *  edge while it's still down). No slopes: there's no data in between to slope through. Only after the history starts; isDown can narrow which gaps count (history: not "asleep"). */
+function DownMarks({ vals, x, y, floor, right, isDown = () => true }:
+  { vals: Series; x: (i: number) => number; y: (v: number) => number; floor: number; right: number; isDown?: (i: number) => boolean }) {
   const first = vals.findIndex(v => v != null);
   if (first < 0) return null;
   const out = [];
@@ -99,13 +99,10 @@ function DownMarks({ vals, x, y, floor, right, h, isDown = () => true }:
     let j = i;
     while (j < vals.length && vals[j] == null && isDown(j)) j++;
     const prev = vals[i - 1], next = vals[j];
-    const a: Pt = prev != null ? [x(i - 1), y(prev)] : [x(i), floor];
-    const b: Pt = next != null && j < vals.length ? [x(j), y(next)] : [j < vals.length ? x(j - 1) : right, floor];
-    const d = `M${a[0].toFixed(1)} ${a[1].toFixed(1)} L${x(i).toFixed(1)} ${floor} L${x(j - 1).toFixed(1)} ${floor} L${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
-    out.push(<g key={i}>
-      <rect x={a[0].toFixed(1)} y="0" width={Math.max(3, b[0] - a[0]).toFixed(1)} height={h} fill="var(--red)" opacity=".14" />
-      <path d={d} fill="none" stroke="var(--red)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
-    </g>);
+    const ax = prev != null ? x(i - 1) : x(i), bx = next != null && j < vals.length ? x(j) : j < vals.length ? x(j - 1) : right;
+    const d = `M${ax.toFixed(1)} ${(prev != null ? y(prev) : floor).toFixed(1)} V${floor} H${bx.toFixed(1)}`
+      + (next != null && j < vals.length ? ` V${y(next).toFixed(1)}` : '');
+    out.push(<path key={i} d={d} fill="none" stroke="var(--red)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />);
     i = j;
   }
   return <>{out}</>;
@@ -121,7 +118,7 @@ export function Spark({ data }: { data: Series }) {
     <svg ref={ref} class="spark" viewBox={`0 0 ${w || 300} ${h || 30}`} preserveAspectRatio="none" aria-label="Response time, last 3 minutes"
          {...hoverProps(data, 'Response', ' ms')}>
       {w > 0 && <>
-        <DownMarks vals={vals} x={x} y={y} floor={h - pad} right={w} h={h} />
+        <DownMarks vals={vals} x={x} y={y} floor={h - pad} right={w} />
         <LineWithFill segs={segmentsOf(vals, (v, i) => [x(i), y(v)])} base={h} col="var(--blue)" />
       </>}
     </svg>
@@ -154,7 +151,7 @@ export function NetChart({ data, ok }: { data: Series; ok: boolean }) {
       {w > 0 && <>
         {startX - pad > 2 && <line x1={pad} x2={startX.toFixed(1)} y1={(first < 0 ? h / 2 : y(data[first]!)).toFixed(1)} y2={(first < 0 ? h / 2 : y(data[first]!)).toFixed(1)}
                                    stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round" />}
-        <DownMarks vals={data} x={i => off + i * step} y={y} floor={h - pad} right={right} h={h} />
+        <DownMarks vals={data} x={i => off + i * step} y={y} floor={h - pad} right={right} />
         <LineWithFill segs={segs} base={h - pad} col={col} />
         {hv != null ? (() => {
           const hx = off + hover! * step, flip = hx > w - 60;
@@ -186,7 +183,7 @@ export function BigLatChart({ data }: { data: Series }) {
           return <g key={f}><line x1="0" x2={w} y1={gy} y2={gy} stroke="#1b2430" /><text x="2" y={gy - 4} fill="var(--dim)" font-size="10">{Math.round(top * f)} ms</text></g>;
         })}
         {startX > 4 && <line x1="0" x2={startX.toFixed(1)} y1={h - pad} y2={h - pad} stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="2 5" />}
-        <DownMarks vals={blipsAsSpikes(data, top)} x={i => off + i * step} y={y} floor={h - pad} right={w} h={h} />
+        <DownMarks vals={blipsAsSpikes(data, top)} x={i => off + i * step} y={y} floor={h - pad} right={w} />
         <LineWithFill segs={segmentsOf(blipsAsSpikes(data, top), (v, i) => [off + i * step, y(v)])} base={h - pad} col="var(--blue)" />
         {data.map((v, i) => v != null && v > top &&
           <text key={i} x={(off + i * step).toFixed(1)} y="10" text-anchor="middle" fill="var(--amber)" font-size="10">↑{Math.round(v)}</text>)}
@@ -278,16 +275,14 @@ export function HistoryChart({ points, outages, step, range }: { points: NetPoin
           const gy = pad + (1 - f) * (ch - 2 * pad);
           return <g key={f}><line x1="0" x2={w} y1={gy} y2={gy} stroke="#1b2430" /><text x="2" y={gy - 4} fill="var(--dim)" font-size="10">{Math.round(top * f)} ms</text></g>;
         })}
-        <DownMarks vals={data} x={i => i * colW + colW / 2} y={y} floor={ch - pad} right={(points.length - 1) * colW + colW / 2} h={ch}
+        <DownMarks vals={data} x={i => i * colW + colW / 2} y={y} floor={ch - pad} right={(points.length - 1) * colW + colW / 2}
                    isDown={i => !!points[i].loss} />
         {outages.map((o, i) => {
-          // At least 4 px, centred on the outage, so a 30-second outage in a month still shows.
+          // A red mark on the floor, at least 6 px wide, so a 30-second outage in a month still shows.
           let a = Math.max(0, x(o.start)), b = Math.min(w, x(o.end));
-          if (b - a < 4) { const c = (a + b) / 2; a = c - 2; b = c + 2; }
-          return b > 0 && a < w && <g key={i}>
-            <rect x={a.toFixed(1)} y="0" width={(b - a).toFixed(1)} height={ch} fill="var(--red)" opacity=".3" />
-            <rect x={a.toFixed(1)} y="0" width={(b - a).toFixed(1)} height="3" fill="var(--red)" />
-          </g>;
+          if (b - a < 6) { const c = (a + b) / 2; a = c - 3; b = c + 3; }
+          return b > 0 && a < w && <line key={i} x1={a.toFixed(1)} x2={b.toFixed(1)} y1={ch - pad} y2={ch - pad}
+                                         stroke="var(--red)" stroke-width="3" stroke-linecap="round" />;
         })}
         <LineWithFill segs={segmentsOf(data, (v, i) => [i * colW + colW / 2, y(v)])} base={ch - pad} col="var(--blue)" />
         {ticks.map(([t, label]) => {
