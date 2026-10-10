@@ -17,6 +17,7 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
+  html { scrollbar-gutter: stable; }  /* a scrollbar appearing doesn't squeeze the page */
   body {
     font: 13px/1.5 var(--mono);
     padding: 24px;
@@ -45,7 +46,7 @@
     grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
   }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  .devices { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+  .devices { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); }
 
   .card {
     background: var(--panel); border: 1px solid var(--line);
@@ -56,7 +57,7 @@
     color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px;
     display: flex; justify-content: space-between; align-items: center;
   }
-  .stack { display: grid; gap: 16px; align-content: start; }
+  .stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-content: start; }  /* cards as wide as the column, whatever their text */
 
   /* Device card */
   .device { position: relative; display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 18px; transition: border-color .15s, box-shadow .15s; }
@@ -269,8 +270,8 @@
   .dv-tools { display: flex; gap: 2px; margin-left: auto; }
   .dv-body { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent;
              display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); }
-  .dv-main, .dv-side { padding: 18px; display: grid; gap: 22px; align-content: start; min-width: 0; }
-  .dv-side { border-left: 1px solid var(--line); background: #0d1218; }
+  .dv-main, .dv-side { padding: 18px; display: grid; gap: 18px; align-content: start; min-width: 0; }
+  .dv-side { border-left: 1px solid var(--line); background: #0d1218; gap: 16px; }
   @media (max-width: 820px) { .dv-body { grid-template-columns: minmax(0, 1fr); } .dv-side { border-left: 0; border-top: 1px solid var(--line); } }
   .dv-sec h4 { margin: 0 0 10px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1.3px;
                display: flex; justify-content: space-between; gap: 10px; }
@@ -296,19 +297,19 @@
   .dv-log .off i { background: var(--red); }
   .dv-cmds { display: grid; gap: 4px; }
   .dv-cmd { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 10px; align-items: center; text-align: left;
-            background: transparent; border-color: transparent; padding: 9px 10px; font-weight: 500; border-radius: 9px; }
+            background: transparent; border-color: transparent; padding: 7px 10px; font-weight: 500; border-radius: 9px; }
   .dv-cmd:hover, .dv-cmd:focus-visible { background: var(--panel-2); border-color: var(--line); }
   .dv-cmd .p { color: var(--green); }
   .dv-cmd code { font: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dv-cmd code em { font-style: normal; color: var(--muted); }
   .dv-cmd > span:last-child { color: var(--dim); font-size: 11px; white-space: nowrap; }
   .dv-cmd.danger-item .p, .dv-cmd.danger-item code { color: var(--red); }
-  .dv-drop { border: 1.5px dashed var(--line); border-radius: 12px; padding: 16px; text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s, background .15s; }
+  .dv-drop { border: 1.5px dashed var(--line); border-radius: 12px; padding: 12px; text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s, background .15s; }
   .dv-drop b { display: block; color: var(--text); }
   .dv-drop small { color: var(--dim); }
   .dv-drop:hover, .dv-drop.drop { border-color: var(--green); background: rgba(52, 211, 153, .06); }
-  .dv-speed { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 12px 12px; display: grid; gap: 12px; justify-items: center; }
-  .dv-speed .st-gauge { width: min(100%, 230px); }
+  .dv-speed { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; justify-items: center; }
+  .dv-speed .st-gauge { width: min(100%, 200px); }
   .dv-speed .st-now { margin-top: -4px; }
   .dv-speed .st-res { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
   .dv-speed .st-res div { background: var(--bg); }
