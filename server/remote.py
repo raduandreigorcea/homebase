@@ -444,7 +444,7 @@ def net_speed(target, windows, report=lambda **kw: None):
                          text=True, errors="replace")
     watchdog = threading.Timer(NET_SECONDS * 2 + 40, p.kill)
     watchdog.start()
-    res, samples, tag = {}, [], None
+    res, samples, tag, shown = {}, [], None, 0
 
     def finish():  # this direction's result, from a second after data starts flowing (connections ramping up)
         if samples:
@@ -468,8 +468,12 @@ def net_speed(target, windows, report=lambda **kw: None):
                     tag, samples = f[0], []
                 b, t = int(f[1]), float(f[2])
                 samples.append((t, b))
-                t0, b0 = next(((ts, bs) for ts, bs in samples if ts >= t - 1), samples[0])
-                report(live=_mbps(b - b0, t - t0) if t > t0 else 0, progress=min(1, t / NET_SECONDS))
+                # Rate over the last two seconds (uploads arrive in bursts); the final stretch keeps its value,
+                # since the transfers are being cut off then.
+                if t < NET_SECONDS - 0.8:
+                    t0, b0 = next(((ts, bs) for ts, bs in samples if ts >= t - 2), samples[0])
+                    shown = _mbps(b - b0, t - t0) if t > t0 else 0
+                report(live=shown, progress=min(1, t / NET_SECONDS))
             elif f[0] == "E":
                 res["error"] = "couldn't reach the speed test servers from there"
         p.wait()

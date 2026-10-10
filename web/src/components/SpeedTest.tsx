@@ -36,7 +36,7 @@ function useGlide(target: number): number {
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) { cur.current = target; setShown(target); return; }
     let raf = 0, last = performance.now();
     const step = (now: number) => {
-      cur.current += (target - cur.current) * (1 - Math.exp(-(now - last) / 160));
+      cur.current += (target - cur.current) * (1 - Math.exp(-(now - last) / 240));
       last = now;
       if (Math.abs(target - cur.current) < 0.1) cur.current = target;
       setShown(cur.current);

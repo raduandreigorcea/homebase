@@ -56,7 +56,7 @@ export function LaptopCard() {
       </div>
       <div class="bat">
         <span class="bat-info">
-          {b && <><BatteryIcon pct={b.pct} status={b.status} /><span>Battery <b>{b.pct}%</b> · {({ Charging: 'charging', Discharging: 'on battery', Full: 'full', 'Not charging': 'plugged in' } as Record<string, string>)[b.status] || b.status}</span></>}
+          {b && <><BatteryIcon pct={b.pct} status={b.status} /><span>Battery <b>{b.pct}%</b></span></>}
         </span>
         <span class={`bat-net${n && !n.online ? ' off' : ''}`} title="Internet history and speed test" role="button" tabIndex={0}
               onClick={() => { historyOpen.value = true; }}

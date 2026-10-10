@@ -12,6 +12,7 @@ HOST = "speed.cloudflare.com"
 SECONDS = 8          # per direction
 WORKERS = 4          # parallel connections: one alone can't fill a fast line
 UP_CHUNK = 1_000_000
+HOLD_LAST = 0.8      # seconds at the end of a direction during which the live value stays put
 
 lock = threading.Lock()
 status = {"phase": "idle"}  # idle | ping | download | upload | done | error
@@ -94,16 +95,20 @@ def _transfer(direction):
     start = time.perf_counter()
     for t in threads:
         t.start()
-    # Live value: the rate over the last second, four times a second.
+    # Live value: the rate over the last two seconds, four times a second. Uploads count a piece when it's
+    # confirmed, so they arrive in bursts; a shorter window made the gauge jump around. The last stretch
+    # keeps its value: the transfers are being cut off then, which isn't a slowdown.
     samples = [(start, 0)]
+    live = 0.0
     while time.perf_counter() - start < SECONDS:
         time.sleep(0.25)
         now = time.perf_counter()
         with lock:
             total = moved[0]
         samples.append((now, total))
-        t0, b0 = next((s for s in samples if s[0] >= now - 1), samples[0])
-        live = (total - b0) * 8 / max(now - t0, 0.01) / 1e6
+        if now - start < SECONDS - HOLD_LAST:
+            t0, b0 = next((s for s in samples if s[0] >= now - 2), samples[0])
+            live = (total - b0) * 8 / max(now - t0, 0.01) / 1e6
         _set(live=round(live, 1), progress=round(min(1, (now - start) / SECONDS), 2))
     stop.set()
     with lock:
