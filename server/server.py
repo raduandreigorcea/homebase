@@ -1090,30 +1090,25 @@ devspeed_lock = threading.Lock()
 
 
 def device_speed(dev, target):
+    """The device's own internet speed test (see remote.net_speed)."""
     with devspeed_lock:
-        if devspeed.get("phase") in ("download", "upload"):
+        if devspeed.get("phase") in ("ping", "download", "upload"):
             return
         devspeed.clear()
-        devspeed.update(phase="download", dev=dev["id"], started=time.time())
-    # Response time: what Homebase already measures every few seconds (median of the last minute).
-    with lock:
-        lat = [v for v in list(state["history"].get(f"lat:{dev['id']}", []))[-15:] if v is not None]
-    if lat:
-        devspeed["ping"] = sorted(lat)[len(lat) // 2]
+        devspeed.update(phase="ping", dev=dev["id"], started=time.time())
 
     def report(**kw):
         with devspeed_lock:
             devspeed.update(kw)
-    (DATA / "tmp").mkdir(exist_ok=True)
     try:
-        res = remote.speed(target, is_windows(dev), DATA / "tmp", report)
+        res = remote.net_speed(target, is_windows(dev), report)
     except Exception:
-        res = None
+        res = {"error": "the test didn't finish there"}
     with devspeed_lock:
-        if res:
-            devspeed.update(res, phase="done", live=0, finished=time.time())
+        if "error" in res:
+            devspeed.update(phase="error", live=0, error=f"{dev['name']} {res['error']}")
         else:
-            devspeed.update(phase="error", error=f"Couldn't measure the speed to {dev['name']}")
+            devspeed.update(res, phase="done", live=0, finished=time.time())
 
 
 SSH_STATS_EVERY = 30  # seconds

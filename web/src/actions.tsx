@@ -22,7 +22,7 @@ export function deviceActions(d: Device): [string, string, string][] {
   // Without SSH, a Windows PC still gets files: they go to the laptop folder Remote Desktop shares with it.
   if (!d.key && d.windows) out.push(['send', 'Send files…', 'send']);
   if (d.key) {
-    out.push(['send', 'Send files…', 'send'], ['speed', 'Speed test', 'speed']);
+    out.push(['send', 'Send files…', 'send'], ['speed', 'Internet speed test', 'speed']);
     if (!d.windows) out.push(['update', 'Update the system', 'update']);
     out.push(['reboot', 'Restart', 'reboot'], ['poweroff', 'Shut down', 'poweroff']);
   }

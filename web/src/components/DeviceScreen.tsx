@@ -96,10 +96,10 @@ function Side({ d }: { d: Device }) {
             : 'or click · find them on the PC in Remote Desktop › This PC › the folder shared by the laptop'}</small>
         </div>
       </div>}
-      {d.key && <div class="dv-sec"><h4>Speed to it <span>{sp?.t ? ago(sp.t) : ''}</span></h4>
+      {d.key && <div class="dv-sec"><h4>Internet speed <span>{sp?.t ? ago(sp.t) : ''}</span></h4>
         <DeviceSpeed d={d} online={!!online} />
       </div>}
-      {d.ssh && !d.key ? <p class="dv-note">Type the SSH password in ✎ to get stats, files and a speed test here.</p>
+      {d.ssh && !d.key ? <p class="dv-note">Type the SSH password in ✎ to get stats, files and an internet speed test here.</p>
         : !d.ssh && d.kind !== 'tv' && !d.windows && <p class="dv-note">Set an SSH user and password in ✎ to control it from here.</p>}
     </div>
   );

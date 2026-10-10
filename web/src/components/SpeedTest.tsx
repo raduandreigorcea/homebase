@@ -1,6 +1,6 @@
-// Speed tests with a gauge, like speedtest.net: the internet one (against Cloudflare) in its own window,
-// and the one to a device (over SSH) inside the device's screen. The server measures; this polls it
-// four times a second while it runs.
+// Internet speed tests with a gauge, like speedtest.net, against Cloudflare: this laptop's in its own
+// window, and a device's (run on the device itself, over SSH) inside its screen. The server measures;
+// this polls it four times a second while it runs.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { enc, getJSON, post, type Device, type SpeedRun } from '../api';
 import { hhmm, mbps } from '../format';
@@ -88,7 +88,7 @@ function useSpeedRun(device: Device | null, autostart: boolean) {
   const start = async () => {
     const j = await post(device ? `/api/speed/${enc(device.id)}` : '/api/netspeed');
     if (!j.ok) return setRun({ phase: 'error', error: device ? `${device.name} isn't reachable over SSH right now` : 'The server isn\'t responding' });
-    setRun({ phase: device ? 'download' : 'ping', dev: device?.id, live: 0 });
+    setRun({ phase: 'ping', dev: device?.id, live: 0 });
     watch();
   };
   useEffect(() => {
@@ -102,12 +102,14 @@ const bigOf = (run: SpeedRun) => run.phase === 'ping' ? '…' : running(run) ? m
 const PHASE_LABEL: Record<string, string> = { ping: 'Measuring ping…', download: 'Download · Mbit/s', upload: 'Upload · Mbit/s', done: 'Download · Mbit/s' };
 const cell = (on: string, name: string, v: string, unit: string) => <div class={on}><span>{name}</span><b>{v}<small>{unit}</small></b></div>;
 
-/** The "Speed to it" box in a device's screen. Starts on its own when asked from the palette or a card. */
+/** The "Internet speed" box in a device's screen. Starts on its own when asked from the palette or a card. */
 export function DeviceSpeed({ d, online }: { d: Device; online: boolean }) {
   const auto = speedStart.value === d.id;
   useEffect(() => { if (auto) speedStart.value = null; }, []);
   const { run, start, busy } = useSpeedRun(d, auto && online);
-  const label = run.phase === 'error' ? run.error : PHASE_LABEL[run.phase] || 'How fast data moves between this laptop and it';
+  const label = run.phase === 'error' ? run.error
+    : run.phase === 'done' ? `Ping ${Math.round(run.ping ?? 0)} ms${run.server ? ' · Cloudflare ' + run.server : ''}`
+    : PHASE_LABEL[run.phase] || `The internet as ${d.name} gets it`;
   const val = (v: number | null | undefined, live: boolean) => v != null ? mbps(v) : live ? mbps(run.live) : '–';
   return (
     <div class="dv-speed">

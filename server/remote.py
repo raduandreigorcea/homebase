@@ -9,7 +9,6 @@ redo the SSH handshake on this slow CPU. Callers pass an already-validated
 import base64
 import os
 import re
-import select
 import shlex
 import subprocess
 import threading
@@ -318,122 +317,170 @@ def send_file(target, windows, path, name):
     return rel if r.returncode == 0 else None
 
 
-# --- Speed test ---------------------------------------------------------------
+# --- Internet speed test, run on the device -------------------------------------
+#
+# The device itself downloads from and uploads to Cloudflare's speed test servers (like the laptop's own
+# test in netspeed.py), so you see the internet as that device gets it: its Wi-Fi, its distance to the
+# router. It prints its progress, one line every quarter second, which is read here:
+#   P <ping ms> <jitter ms> <data centre>     D|U <bytes so far> <seconds so far>     E <what went wrong>
 
-SPEED_SECONDS = 3.0
-CHUNK = 256 * 1024
-WINDOWS_SOURCE = powershell("$o=[Console]::OpenStandardOutput();$b=New-Object byte[] 262144;while($true){$o.Write($b,0,$b.Length)}")
+NET_SECONDS = 8  # per direction, as in netspeed.py
+
+# Linux: Python 3, which Raspberry Pi OS and most systems have. Four connections, like netspeed.py.
+LINUX_NET = r"""
+import http.client, os, ssl, statistics, sys, threading, time
+H = "speed.cloudflare.com"
+def out(*a): print(*a, flush=True)
+def conn(): return http.client.HTTPSConnection(H, timeout=10, context=ssl.create_default_context())
+try:
+    c, ts = conn(), []
+    for _ in range(10):
+        t = time.perf_counter(); c.request("GET", "/__down?bytes=0"); r = c.getresponse(); r.read()
+        ts.append((time.perf_counter() - t) * 1000)
+    c.close(); ts = ts[1:]
+    out("P", round(min(ts), 1), round(statistics.mean(abs(a - b) for a, b in zip(ts, ts[1:])), 1),
+        (r.getheader("cf-ray") or "-").rsplit("-", 1)[-1])
+    for tag in "DU":
+        moved, stop, lk = [0], threading.Event(), threading.Lock()
+        def work(tag, moved, stop, lk):  # its own copies: the previous direction's threads may still be ending
+            c, body = conn(), bytes(262144)
+            try:
+                while not stop.is_set():
+                    if tag == "D":
+                        c.request("GET", "/__down?bytes=25000000"); r = c.getresponse()
+                        while not stop.is_set():
+                            b = r.read(65536)
+                            if not b: break
+                            with lk: moved[0] += len(b)
+                    else:
+                        c.request("POST", "/__up", body=body, headers={"Content-Type": "application/octet-stream"})
+                        c.getresponse().read()
+                        with lk: moved[0] += len(body)
+            except Exception:
+                pass
+        for _ in range(4): threading.Thread(target=work, args=(tag, moved, stop, lk), daemon=True).start()
+        t0 = time.perf_counter()
+        while time.perf_counter() - t0 < SECONDS:
+            time.sleep(0.25); out(tag, moved[0], round(time.perf_counter() - t0, 3))
+        stop.set()
+except Exception as e:
+    out("E", type(e).__name__)
+os._exit(0)
+""".replace("SECONDS", str(NET_SECONDS))
+
+# Windows: PowerShell with .NET's HttpClient; four reads (or uploads) in flight at once.
+WINDOWS_NET = r"""
+$ErrorActionPreference = 'Stop'
+$inv = [Globalization.CultureInfo]::InvariantCulture
+function Out($s) { [Console]::Out.WriteLine($s); [Console]::Out.Flush() }
+try {
+  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+  [Net.ServicePointManager]::DefaultConnectionLimit = 16
+  Add-Type -AssemblyName System.Net.Http
+  $h = New-Object Net.Http.HttpClient
+  $B = 'https://speed.cloudflare.com'
+  $ts = @(); $code = '-'
+  for ($i = 0; $i -lt 10; $i++) {
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $r = $h.GetAsync("$B/__down?bytes=0").Result; $null = $r.Content.ReadAsByteArrayAsync().Result
+    $ts += $sw.Elapsed.TotalMilliseconds
+    $v = $null; if ($r.Headers.TryGetValues('cf-ray', [ref]$v)) { $code = (@($v)[0] -split '-')[-1] }
+  }
+  $ts = $ts[1..9]; $j = 0; for ($i = 1; $i -lt $ts.Count; $i++) { $j += [Math]::Abs($ts[$i] - $ts[$i - 1]) }
+  Out ([string]::Format($inv, 'P {0:F1} {1:F1} {2}', ($ts | Measure-Object -Minimum).Minimum, $j / ($ts.Count - 1), $code))
+  $W = 4; $tasks = New-Object 'System.Threading.Tasks.Task[]' $W
+  $streams = New-Object object[] $W; $bufs = @(); for ($i = 0; $i -lt $W; $i++) { $bufs += ,(New-Object byte[] 262144) }
+  $body = New-Object byte[] 262144
+  foreach ($tag in 'D', 'U') {
+    $tot = [long]0; $next = 0.25
+    for ($i = 0; $i -lt $W; $i++) {
+      if ($tag -eq 'D') {
+        $resp = $h.GetAsync("$B/__down?bytes=25000000", [Net.Http.HttpCompletionOption]::ResponseHeadersRead).Result
+        $streams[$i] = $resp.Content.ReadAsStreamAsync().Result
+        $tasks[$i] = $streams[$i].ReadAsync($bufs[$i], 0, 262144)
+      } else { $tasks[$i] = $h.PostAsync("$B/__up", (New-Object Net.Http.ByteArrayContent(,$body))) }
+    }
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt SECONDS) {
+      $k = [Threading.Tasks.Task]::WaitAny($tasks, 100)
+      if ($k -ge 0) {
+        if ($tag -eq 'D') {
+          $n = $tasks[$k].Result
+          if ($n -le 0) {
+            $streams[$k].Dispose()
+            $resp = $h.GetAsync("$B/__down?bytes=25000000", [Net.Http.HttpCompletionOption]::ResponseHeadersRead).Result
+            $streams[$k] = $resp.Content.ReadAsStreamAsync().Result
+          } else { $tot += $n }
+          $tasks[$k] = $streams[$k].ReadAsync($bufs[$k], 0, 262144)
+        } else {
+          $null = $tasks[$k].Result; $tot += $body.Length
+          $tasks[$k] = $h.PostAsync("$B/__up", (New-Object Net.Http.ByteArrayContent(,$body)))
+        }
+      }
+      if ($sw.Elapsed.TotalSeconds -ge $next) { Out ([string]::Format($inv, '{0} {1} {2:F3}', $tag, $tot, $sw.Elapsed.TotalSeconds)); $next += 0.25 }
+    }
+  }
+} catch { Out ('E ' + $_.Exception.GetBaseException().GetType().Name) }
+[Environment]::Exit(0)
+""".replace("SECONDS", str(NET_SECONDS))
 
 
 def _mbps(nbytes, seconds):
     return round(nbytes * 8 / seconds / 1e6, 1) if seconds > 0 else None
 
 
-class _Rate:
-    """Live Mbit/s over the last second, from a running byte count."""
-    def __init__(self):
-        self.samples = [(time.perf_counter(), 0)]
-
-    def add(self, total):
-        now = time.perf_counter()
-        self.samples.append((now, total))
-        self.samples = [x for x in self.samples if x[0] >= now - 1.5]
-        t0, b0 = self.samples[0]
-        return _mbps(total - b0, now - t0) if now > t0 else None
-
-
-def _download(base, source, report):
-    """Mbit/s the device sends for SPEED_SECONDS, counted from the first byte; reports live values."""
-    p = subprocess.Popen(base + [source], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    fd, got, start, rate, shown = p.stdout.fileno(), 0, None, _Rate(), 0.0
-    deadline = time.monotonic() + SPEED_SECONDS + 10  # 10 s for it to start sending at all
-    try:
-        while time.monotonic() < deadline:
-            ready, _, _ = select.select([fd], [], [], 0.25)
-            if ready:
-                chunk = os.read(fd, CHUNK)
-                if not chunk:
-                    break
-                if start is None:  # PowerShell takes a moment to start: don't count that
-                    start = time.perf_counter()
-                    deadline = time.monotonic() + SPEED_SECONDS
-                got += len(chunk)
-            if start and time.perf_counter() - shown >= 0.25:
-                shown = time.perf_counter()
-                report(live=rate.add(got), progress=min(1, (shown - start) / SPEED_SECONDS))
-    finally:
-        p.kill()
-        p.wait()
-    return _mbps(got, time.perf_counter() - start) if start else None
-
-
-UPLOAD_LIMIT = 40  # seconds; a watchdog ends the upload after this, whatever happens
-WIN_PIECES = 5     # Windows upload goes in pieces, so there's something to show while it runs
-
-
-def _upload(target, windows, nbytes, tmp_dir, report):
-    """Send nbytes and time it until the device has them all (not just until our buffers empty).
-
-    Linux: piped into `head`. Windows: copied as a temporary file over SFTP, in pieces (the same way
-    files are sent), because PowerShell started over SSH never reads what's piped into it."""
-    start = time.perf_counter()
+def net_speed(target, windows, report=lambda **kw: None):
+    """Ping, download and upload of the device's own internet connection.
+    report(phase=..., live=..., ...) is called as it goes, for a live gauge.
+    Returns {"ping", "jitter", "server", "down", "up"}, or {"error": ...}."""
+    from netspeed import CITIES
+    if not key_works(target):  # also opens the shared connection
+        return {"error": "isn't reachable over SSH right now"}
     if windows:
-        piece = max(256 * 1024, nbytes // WIN_PIECES)
-        local = tmp_dir / "homebase-speedtest.tmp"
-        with open(local, "wb") as f:
-            f.truncate(piece)  # zeros, without writing them all to disk
-        sent = 0
-        try:
-            while sent < nbytes and time.perf_counter() - start < UPLOAD_LIMIT:
-                t = time.perf_counter()
-                r = subprocess.run(["scp", "-q", *ssh_args(), "--", str(local), f"{target}:homebase-speedtest.tmp"],
-                                   capture_output=True, timeout=UPLOAD_LIMIT)
-                if r.returncode != 0:
-                    return None
-                sent += piece
-                report(live=_mbps(piece, time.perf_counter() - t), progress=min(1, sent / nbytes))
-            took = time.perf_counter() - start
-            run(target, powershell("Remove-Item -LiteralPath (Join-Path $HOME 'homebase-speedtest.tmp')"), timeout=20)
-        except (OSError, subprocess.SubprocessError):
-            return None
-        finally:
-            local.unlink(missing_ok=True)
-        return _mbps(sent, took)
-    p = subprocess.Popen(["ssh", *ssh_args(), "--", target, f"head -c {nbytes} > /dev/null"],
-                         stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    watchdog = threading.Timer(UPLOAD_LIMIT, p.kill)  # a write can block forever if the other end stalls
+        cmd = powershell(WINDOWS_NET)
+    else:
+        cmd = "python3 -c \"import base64;exec(base64.b64decode('%s'))\"" % base64.b64encode(LINUX_NET.encode()).decode()
+    p = subprocess.Popen(["ssh", *ssh_args(), "--", target, cmd], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                         text=True, errors="replace")
+    watchdog = threading.Timer(NET_SECONDS * 2 + 40, p.kill)
     watchdog.start()
-    sent, zeros, rate, shown = 0, bytes(CHUNK), _Rate(), 0.0
+    res, samples, tag = {}, [], None
+
+    def finish():  # this direction's result, from a second after data starts flowing (connections ramping up)
+        if samples:
+            t_end, b_end = samples[-1]
+            t_first = next((t for t, b in samples if b > 0), 0)
+            t1, b1 = next(((t, b) for t, b in samples if t >= t_first + 1), samples[0])
+            res["down" if tag == "D" else "up"] = _mbps(b_end - b1, t_end - t1)
     try:
-        while sent < nbytes:
-            n = min(CHUNK, nbytes - sent)
-            p.stdin.write(zeros[:n])
-            sent += n
-            if time.perf_counter() - shown >= 0.25:
-                shown = time.perf_counter()
-                report(live=rate.add(sent), progress=min(1, sent / nbytes))
-        p.stdin.close()
+        for line in p.stdout:
+            f = line.split()
+            if not f:
+                continue
+            if f[0] == "P" and len(f) == 4:
+                res.update(ping=float(f[1]), jitter=float(f[2]), server=CITIES.get(f[3].upper(), f[3].upper()))
+                report(phase="download", live=0, progress=0, **res)
+            elif f[0] in ("D", "U") and len(f) == 3:
+                if f[0] != tag:
+                    if tag:
+                        finish()
+                        report(phase="upload", live=0, progress=0, **res)
+                    tag, samples = f[0], []
+                b, t = int(f[1]), float(f[2])
+                samples.append((t, b))
+                t0, b0 = next(((ts, bs) for ts, bs in samples if ts >= t - 1), samples[0])
+                report(live=_mbps(b - b0, t - t0) if t > t0 else 0, progress=min(1, t / NET_SECONDS))
+            elif f[0] == "E":
+                res["error"] = "couldn't reach the speed test servers from there"
         p.wait()
-    except (BrokenPipeError, OSError):
-        p.wait()
+        if tag:
+            finish()
     finally:
         watchdog.cancel()
-    return _mbps(sent, time.perf_counter() - start) if p.returncode == 0 and sent == nbytes else None
-
-
-def speed(target, windows, tmp_dir, report=lambda **kw: None):
-    """Download and upload speed between this machine and the device, in Mbit/s.
-    report(phase=..., live=..., progress=...) is called as it goes, for a live gauge.
-
-    Data goes through SSH (nothing to install), so a device with a weak CPU
-    (Pi Zero) may top out below what its Wi-Fi could do."""
-    if not key_works(target):  # also opens the shared connection, so the handshake isn't timed
-        return None
-    base = ["ssh", *ssh_args(), "--", target]
-    report(phase="download", live=0, progress=0)
-    down = _download(base, WINDOWS_SOURCE if windows else "cat /dev/zero", report)
-    report(phase="upload", down=down, live=0, progress=0)
-    # Upload about SPEED_SECONDS' worth, guessed from the download speed (links are rarely lopsided at home).
-    nbytes = int(min(80e6, max(1e6, (down or 8) * 1e6 / 8 * SPEED_SECONDS)))
-    up = _upload(target, windows, nbytes, tmp_dir, report)
-    return {"down": down, "up": up} if down or up else None
+        if p.poll() is None:
+            p.kill()
+    if p.returncode == 127 and not tag:
+        return {"error": "needs Python 3 for the test (it isn't installed there)"}
+    if res.get("down") is None and "error" not in res:
+        res["error"] = "the test didn't finish there"
+    return res
