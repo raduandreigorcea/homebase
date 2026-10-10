@@ -7,7 +7,7 @@ import { dur, hhmm } from '../format';
 import { Close } from '../icons';
 import { historyOpen, netSpeedOpen, state } from '../store';
 
-const RANGES = [['day', '24 hours'], ['week', '7 days'], ['month', '30 days']] as const;
+const RANGES = [['hour', '1 hour'], ['day', '24 hours'], ['week', '7 days'], ['month', '30 days']] as const;
 type Range = typeof RANGES[number][0];
 
 /** "45 s", "3m", "1h 20m". */

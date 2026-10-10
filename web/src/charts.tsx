@@ -253,7 +253,10 @@ export function HistoryChart({ points, outages, step, range }: { points: NetPoin
   const ticks: [number, string][] = [];
   const d = new Date(t0 * 1000);
   d.setMinutes(0, 0, 0);
-  if (range === 'day') {
+  if (range === 'hour') {
+    d.setTime(Math.ceil(t0 / 600) * 600 * 1000);  // every 10 minutes
+    for (; d.getTime() / 1000 < t1; d.setMinutes(d.getMinutes() + 10)) ticks.push([d.getTime() / 1000, hhmm(d)]);
+  } else if (range === 'day') {
     d.setHours(Math.ceil(d.getHours() / 6) * 6);
     for (; d.getTime() / 1000 < t1; d.setHours(d.getHours() + 6)) ticks.push([d.getTime() / 1000, hhmm(d)]);
   } else {
@@ -269,7 +272,7 @@ export function HistoryChart({ points, outages, step, range }: { points: NetPoin
   };
   const tipBase = (p: NetPoint) => {
     const when = new Date(p.t * 1000);
-    const label = range === 'day' ? hhmm(when) : when.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + (range === 'week' ? ' ' + hhmm(when) : '');
+    const label = range === 'day' || range === 'hour' ? hhmm(when) : when.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + (range === 'week' ? ' ' + hhmm(when) : '');
     if (p.avg == null) return p.loss ? `${label}: down` : `${label}: not measured (laptop off or asleep)`;
     return `${label}: ${Math.round(p.avg)} ms average, worst ${Math.round(p.max ?? p.avg)} ms${p.loss ? `, ${Math.round(p.loss * 100)}% unanswered` : ''}`;
   };

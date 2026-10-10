@@ -1,16 +1,18 @@
 """The internet's long-term history: response time and outages over days and weeks, kept on disk.
 
-Every internet check (a few seconds apart) goes into a 5-minute bucket; a finished bucket is one line
-appended to a file, so the cost is a small write every 5 minutes. Outages are kept apart, with when
+Every internet check (a few seconds apart) goes into a 1-minute bucket; a finished bucket is one line
+appended to a file, so the cost is a small write every minute. (Lines from before this were 5-minute
+buckets; they have no "s" field and count as 300 s.) Outages are kept apart, with when
 they started and ended. Time the laptop was asleep or off has no buckets: it shows as "not measured".
 """
 import json
 import threading
 import time
 
-BUCKET = 300           # seconds per stored point
-KEEP_DAYS = 90
+BUCKET = 60            # seconds per stored point
+KEEP_DAYS = 40
 RANGES = {             # what the page can ask for: (seconds back, seconds per point it gets)
+    "hour": (3600, 60),
     "day": (86400, 300),
     "week": (7 * 86400, 3600),
     "month": (30 * 86400, 6 * 3600),
@@ -77,7 +79,7 @@ def _save_outages(outs):
 
 def _flush(b):
     n = b["n"]
-    point = {"t": b["t"], "n": n, "loss": round(b["miss"] / n, 3)}
+    point = {"t": b["t"], "n": n, "s": BUCKET, "loss": round(b["miss"] / n, 3)}
     if n > b["miss"]:
         point["avg"] = round(b["sum"] / (n - b["miss"]), 1)
         point["max"] = round(b["max"], 1)
@@ -130,7 +132,7 @@ def summary(which):
         pts = [p for p in _load_points() if p["t"] >= since]
         if _bucket and _bucket["n"]:
             b = _bucket
-            cur = {"t": b["t"], "n": b["n"], "loss": b["miss"] / b["n"]}
+            cur = {"t": b["t"], "n": b["n"], "s": BUCKET, "loss": b["miss"] / b["n"]}
             if b["n"] > b["miss"]:
                 cur.update(avg=b["sum"] / (b["n"] - b["miss"]), max=b["max"])
             pts.append(cur)
@@ -160,7 +162,7 @@ def summary(which):
             point["max"] = round(max(p["max"] for p in group if "max" in p), 1)
         series.append(point)
 
-    measured = len(pts) * BUCKET  # time the laptop was checking (whole 5-minute buckets)
+    measured = sum(p.get("s", 300) for p in pts)  # time the laptop was checking (whole buckets)
     down = sum(min(o["end"], now) - max(o["start"], since) for o in outs)
     answered = [(p["avg"], p["n"] * (1 - p["loss"])) for p in pts if "avg" in p]
     weight = sum(w for _, w in answered)

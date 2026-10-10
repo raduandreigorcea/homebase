@@ -87,7 +87,7 @@ export interface Laptop {
 export interface NetPoint { t: number; avg?: number; max?: number; loss?: number }
 export interface Outage { start: number; end: number; ongoing?: boolean }
 export interface NetHistory {
-  range: 'day' | 'week' | 'month';
+  range: 'hour' | 'day' | 'week' | 'month';
   step: number;
   points: NetPoint[];
   outages: Outage[];
