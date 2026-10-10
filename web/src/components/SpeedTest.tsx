@@ -3,18 +3,19 @@
 // this polls it four times a second while it runs.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { enc, getJSON, post, type Device, type SpeedRun } from '../api';
-import { hhmm, mbps } from '../format';
+import { hhmm, mbs } from '../format';
 import { Close } from '../icons';
 import { netSpeedOpen, speeds, speedStart } from '../store';
 
-// Gauge scale: speeds people actually have, spread evenly (0 · 5 · 10 · 50 · 100 · 250 · 500 · 1000 Mbit/s).
-const TICKS = [0, 5, 10, 50, 100, 250, 500, 1000];
-const SWEEP = 240;  // degrees, from -120 (0) to +120 (1000)
+// Gauge scale in MB/s: speeds people actually have, spread evenly (0 · 1 · 2 · 5 · 10 · 25 · 50 · 100).
+const TICKS = [0, 1, 2, 5, 10, 25, 50, 100];
+const SWEEP = 240;  // degrees, from -120 (0) to +120 (100)
 
 function angle(v = 0): number {
-  v = Math.max(0, Math.min(1000, v));
+  const top = TICKS[TICKS.length - 1];
+  v = Math.max(0, Math.min(top, v));
   const i = Math.max(0, TICKS.findIndex(t => t >= v) - 1);
-  const a = TICKS[i], b = TICKS[i + 1] ?? 1000;
+  const a = TICKS[i], b = TICKS[i + 1] ?? top;
   return -SWEEP / 2 + (i + (b > a ? (v - a) / (b - a) : 0)) * SWEEP / (TICKS.length - 1);
 }
 function point(deg: number, r: number): [number, number] {
@@ -51,7 +52,7 @@ function useGlide(target: number): number {
 function Dial({ run, big }: { run: SpeedRun; big: string }) {
   const value = run.phase === 'download' || run.phase === 'upload' ? run.live : run.phase === 'done' ? run.down ?? 0 : 0;
   const col = run.phase === 'upload' ? 'var(--violet)' : 'var(--blue)';
-  const deg = useGlide(angle(value));
+  const deg = useGlide(angle((value ?? 0) / 8));  // the server measures Mbit/s; the gauge is in MB/s
   const [nx, ny] = point(0, 112);
   return (
     <svg class="st-gauge" viewBox="0 0 380 285" aria-hidden="true">
@@ -81,7 +82,7 @@ function useSpeedRun(device: Device | null, autostart: boolean) {
     // The device test is shared: a result for another device doesn't belong here.
     if (device && r.dev && r.dev !== device.id) r = { phase: 'idle' };
     setRun(r);
-    if (device && r.phase === 'done') speeds.value = { ...speeds.value, [device.id]: { down: mbps(r.down), up: mbps(r.up), t: (r.finished || 0) * 1000 } };
+    if (device && r.phase === 'done') speeds.value = { ...speeds.value, [device.id]: { down: mbs(r.down), up: mbs(r.up), t: (r.finished || 0) * 1000 } };
     if (!running(r)) { clearInterval(timer.current); timer.current = undefined; }
   };
   const watch = () => { timer.current ??= setInterval(poll, 250); };
@@ -98,8 +99,8 @@ function useSpeedRun(device: Device | null, autostart: boolean) {
   return { run, start, busy: running(run) };
 }
 
-const bigOf = (run: SpeedRun) => run.phase === 'ping' ? '…' : running(run) ? mbps(run.live) : run.phase === 'done' ? mbps(run.down) : '–';
-const PHASE_LABEL: Record<string, string> = { ping: 'Measuring ping…', download: 'Download · Mbit/s', upload: 'Upload · Mbit/s', done: 'Download · Mbit/s' };
+const bigOf = (run: SpeedRun) => run.phase === 'ping' ? '…' : running(run) ? mbs(run.live) : run.phase === 'done' ? mbs(run.down) : '–';
+const PHASE_LABEL: Record<string, string> = { ping: 'Measuring ping…', download: 'Download · MB/s', upload: 'Upload · MB/s', done: 'Download · MB/s' };
 const cell = (on: string, name: string, v: string, unit: string) => <div class={on}><span>{name}</span><b>{v}<small>{unit}</small></b></div>;
 
 /** The "Internet speed" box in a device's screen. Starts on its own when asked from the palette or a card. */
@@ -110,14 +111,14 @@ export function DeviceSpeed({ d, online }: { d: Device; online: boolean }) {
   const label = run.phase === 'error' ? run.error
     : run.phase === 'done' ? `Ping ${Math.round(run.ping ?? 0)} ms${run.server ? ' · Cloudflare ' + run.server : ''}`
     : PHASE_LABEL[run.phase] || `The internet as ${d.name} gets it`;
-  const val = (v: number | null | undefined, live: boolean) => v != null ? mbps(v) : live ? mbps(run.live) : '–';
+  const val = (v: number | null | undefined, live: boolean) => v != null ? mbs(v) : live ? mbs(run.live) : '–';
   return (
     <div class="dv-speed">
       <Dial run={run} big={bigOf(run)} />
       <div class="st-now">{label}</div>
       <div class="st-res">
-        {cell(run.phase === 'download' ? 'on' : '', '↓ Down', val(run.down, run.phase === 'download'), 'Mbit/s')}
-        {cell(run.phase === 'upload' ? 'on up' : '', '↑ Up', val(run.up, run.phase === 'upload'), 'Mbit/s')}
+        {cell(run.phase === 'download' ? 'on' : '', '↓ Down', val(run.down, run.phase === 'download'), 'MB/s')}
+        {cell(run.phase === 'upload' ? 'on up' : '', '↑ Up', val(run.up, run.phase === 'upload'), 'MB/s')}
         <button class="primary" disabled={busy || !online} onClick={start}>{busy ? '…' : run.phase === 'done' || run.phase === 'error' ? 'Again' : 'Measure'}</button>
       </div>
     </div>
@@ -147,8 +148,8 @@ export function SpeedTest() {
           <div class="st-res">
             {cell(run.phase === 'ping' ? 'on' : '', 'Ping', run.ping != null ? String(Math.round(run.ping)) : '–', 'ms')}
             {cell('', 'Jitter', run.jitter != null ? String(Math.round(run.jitter)) : '–', 'ms')}
-            {cell(run.phase === 'download' ? 'on' : '', '↓ Download', run.down != null ? mbps(run.down) : run.phase === 'download' ? mbps(run.live) : '–', 'Mbit/s')}
-            {cell(run.phase === 'upload' ? 'on up' : '', '↑ Upload', run.up != null ? mbps(run.up) : run.phase === 'upload' ? mbps(run.live) : '–', 'Mbit/s')}
+            {cell(run.phase === 'download' ? 'on' : '', '↓ Download', run.down != null ? mbs(run.down) : run.phase === 'download' ? mbs(run.live) : '–', 'MB/s')}
+            {cell(run.phase === 'upload' ? 'on up' : '', '↑ Upload', run.up != null ? mbs(run.up) : run.phase === 'upload' ? mbs(run.live) : '–', 'MB/s')}
           </div>
           <button class="primary" disabled={busy} onClick={start}>{busy ? 'Measuring…' : run.phase === 'done' || run.phase === 'error' ? 'Run again' : 'Start'}</button>
           <div class="st-foot">{when || 'Uses about as much data as a speedtest.net run.'}</div>

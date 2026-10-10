@@ -52,8 +52,8 @@ export function prettyName(n?: string): string {
 /** Lowercase without accents, for matching typed text. */
 export const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-/** Mbit/s as people read it: "233", "64.5", "–". */
-export const mbps = (v: number | null | undefined) => v == null ? '–' : v >= 100 ? String(Math.round(v)) : v.toFixed(1);
+/** A speed in MB/s (the unit downloads show), from the Mbit/s the server measures: "45", "2.6", "–". */
+export const mbs = (mbit: number | null | undefined) => mbit == null ? '–' : mbit / 8 >= 10 ? String(Math.round(mbit / 8)) : (mbit / 8).toFixed(1);
 
 export const USER_OK = (v: string) =>
   !v || /^[A-Za-z_][A-Za-z0-9_.-]{0,31}$/.test(v) ? '' : 'A user name can only have letters, digits and - _ .';
