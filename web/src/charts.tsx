@@ -32,6 +32,20 @@ export function latTop(data: Series, steps = [25, 50, 100, 200, 500, 1000, 2000,
   return steps.find(x => x >= p90 * 1.4) || steps[steps.length - 1];
 }
 
+/** A device that misses one or two checks is still on, just slow to answer (Wi-Fi power saving does this):
+ *  draw those as a spike to the top rather than a break. Longer gaps stay gaps: the device was gone. */
+function blipsAsSpikes(data: Series, top: number): Series {
+  const out = data.slice();
+  for (let i = 0; i < out.length; i++) {
+    if (out[i] != null) continue;
+    let j = i;
+    while (j < out.length && out[j] == null) j++;
+    if (i > 0 && j < out.length && j - i <= 2) for (let k = i; k < j; k++) out[k] = top;
+    i = j;
+  }
+  return out;
+}
+
 /** Splits a series into runs without gaps, as points. */
 function segmentsOf(data: Series, xy: (v: number, i: number) => Pt): Pt[][] {
   const segs: Pt[][] = [[]];
@@ -61,7 +75,9 @@ function hoverProps(data: Series, label: string, unit: string, inset = 0): JSX.S
     onMouseMove: (e: MouseEvent) => {
       const i = hoverIndex(e, data.length, inset);
       const v = data[i];
-      if (i >= 0 && i < data.length && v != null) showTip(e, `${label}: ${Math.round(v)}${unit}`);
+      if (i < 0 || i >= data.length) hideTip();
+      else if (v != null) showTip(e, `${label}: ${Math.round(v)}${unit}`);
+      else if (data.slice(0, i).some(x => x != null)) showTip(e, `${label}: no answer`);  // not before the history starts
       else hideTip();
     },
     onMouseLeave: hideTip,
@@ -75,7 +91,7 @@ export function Spark({ data }: { data: Series }) {
   return (
     <svg ref={ref} class="spark" viewBox={`0 0 ${w || 300} ${h || 30}`} preserveAspectRatio="none" aria-label="Response time, last 3 minutes"
          {...hoverProps(data, 'Response', ' ms')}>
-      {w > 0 && <LineWithFill segs={segmentsOf(data, (v, i) => [off + i * step, h - pad - Math.min(v, top) / top * (h - 2 * pad)])} base={h} col="var(--blue)" />}
+      {w > 0 && <LineWithFill segs={segmentsOf(blipsAsSpikes(data, top), (v, i) => [off + i * step, h - pad - Math.min(v, top) / top * (h - 2 * pad)])} base={h} col="var(--blue)" />}
     </svg>
   );
 }
@@ -133,7 +149,7 @@ export function BigLatChart({ data }: { data: Series }) {
           return <g key={f}><line x1="0" x2={w} y1={gy} y2={gy} stroke="#1b2430" /><text x="2" y={gy - 4} fill="var(--dim)" font-size="10">{Math.round(top * f)} ms</text></g>;
         })}
         {startX > 4 && <line x1="0" x2={startX.toFixed(1)} y1={h - pad} y2={h - pad} stroke="var(--dim)" stroke-width="1.5" stroke-dasharray="2 5" />}
-        <LineWithFill segs={segmentsOf(data, (v, i) => [off + i * step, y(v)])} base={h - pad} col="var(--blue)" />
+        <LineWithFill segs={segmentsOf(blipsAsSpikes(data, top), (v, i) => [off + i * step, y(v)])} base={h - pad} col="var(--blue)" />
         {data.map((v, i) => v != null && v > top &&
           <text key={i} x={(off + i * step).toFixed(1)} y="10" text-anchor="middle" fill="var(--amber)" font-size="10">↑{Math.round(v)}</text>)}
       </>}
