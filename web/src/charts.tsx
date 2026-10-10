@@ -242,8 +242,7 @@ export function Gauge({ pct, text, col }: { pct: number; text: string; col: stri
  *  and gaps where the laptop was off or asleep. */
 export function HistoryChart({ points, outages, step, range }: { points: NetPoint[]; outages: Outage[]; step: number; range: string }) {
   const [ref, w, h] = useSize<SVGSVGElement>();
-  // From the top: the line chart, a thin lane where outages show as red bars, then the time labels.
-  const axis = 16, lane = 12, ch = h - axis - lane, pad = 4;
+  const axis = 18, ch = h - axis, pad = 4;
   const data: Series = points.map(p => p.avg ?? null);
   const top = latTop(data, [50, 100, 200, 500, 1000, 2000]);  // never tighter than 50 ms: 2 ms of jitter isn't news
   const t0 = points[0]?.t ?? 0, t1 = (points[points.length - 1]?.t ?? 0) + step;
@@ -289,12 +288,12 @@ export function HistoryChart({ points, outages, step, range }: { points: NetPoin
         })}
         <DownMarks vals={data} x={i => i * colW + colW / 2} y={y} right={(points.length - 1) * colW + colW / 2}
                    isDown={i => !!points[i].loss} />  {/* no text: outages can sit close together here; the tooltip has it */}
-        <line x1="0" x2={w} y1={ch + 1} y2={ch + 1} stroke="#1b2430" />
         {outages.map((o, i) => {
-          // At least 4 px wide, so a 30-second outage in a month still shows.
+          // A red line over the whole height at the time of the outage (at least 2 px wide): the 5-minute
+          // average around it can look perfectly normal, so the line itself has to say it happened.
           let a = Math.max(0, x(o.start)), b = Math.min(w, x(o.end));
-          if (b - a < 4) { const c = (a + b) / 2; a = c - 2; b = c + 2; }
-          return b > 0 && a < w && <rect key={i} x={a.toFixed(1)} y={ch + 4} width={(b - a).toFixed(1)} height={lane - 6} rx="1.5" fill="var(--red)" />;
+          if (b - a < 2) { const c = (a + b) / 2; a = c - 1; b = c + 1; }
+          return b > 0 && a < w && <rect key={i} x={a.toFixed(1)} y={pad} width={(b - a).toFixed(1)} height={ch - 2 * pad} rx="1" fill="var(--red)" opacity=".85" />;
         })}
         <LineWithFill segs={segmentsOf(data, (v, i) => [i * colW + colW / 2, y(v)])} base={ch - pad} col="var(--blue)" />
         {ticks.map(([t, label]) => {
