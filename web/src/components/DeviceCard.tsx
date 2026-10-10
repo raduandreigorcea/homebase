@@ -129,6 +129,9 @@ export function DeviceCard({ d, st }: { d: Device; st?: Status }) {
           <button class="icon-btn" title="Remove from the panel" onClick={e => { e.stopPropagation(); removeDevice(d); }}><Close /></button>
         </div>
       </div>
+      {/* One fixed wrapper for everything that comes and goes as the device turns on and off, so it can't
+          end up after the buttons (Preact can misplace fragments that appear and vanish next to each other). */}
+      <div class="dev-body">
       {online ? (
         <div class="facts">
           {st!.latency != null && <div><span>Response</span><b>{Math.round(st!.latency)} ms</b></div>}
@@ -144,6 +147,7 @@ export function DeviceCard({ d, st }: { d: Device; st?: Status }) {
       </>}
       {tvActive ? <TvBlock d={d} tv={tv} />
         : online && <>{stats && <StatsRow x={stats} />}{d.probe_port && !tv && <Spark data={lat} />}</>}
+      </div>
       {(main || wakeBtn) && <div class="actions">{main}{wakeBtn}</div>}
     </section>
   );

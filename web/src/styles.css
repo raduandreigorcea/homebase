@@ -66,6 +66,7 @@
   .device:hover { border-color: #2c3846; }
   .device { cursor: pointer; }  /* a click opens the device's big screen */
   .dev-head { display: flex; align-items: flex-start; gap: 12px; }
+  .dev-body { display: contents; }  /* only keeps the card's parts in order; lays out as if it weren't there */
   .dev-icon {
     width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
     background: var(--panel-2); flex: none;
