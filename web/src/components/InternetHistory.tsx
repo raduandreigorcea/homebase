@@ -2,7 +2,7 @@
 // Opened by clicking the internet chart in the top bar; the server keeps the data on disk.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { getJSON, type NetHistory } from '../api';
-import { HistoryEChart } from './HistoryEChart';
+import { HistoryChart } from '../charts';
 import { dur, hhmm } from '../format';
 import { Close } from '../icons';
 import { historyOpen, netSpeedOpen, state } from '../store';
@@ -79,7 +79,7 @@ export function InternetHistory() {
             <Tile label="Worst response" value={shown?.worst != null ? String(Math.round(shown.worst)) : '–'} unit="ms" />
           </div>
           <div class="dv-chart">
-            {shown ? <HistoryEChart points={shown.points} outages={shown.outages} step={shown.step} range={range} />
+            {shown ? <HistoryChart points={shown.points} outages={shown.outages} step={shown.step} range={range} />
               : <div class="hist-chart" />}
           </div>
           <div class="dv-sec">

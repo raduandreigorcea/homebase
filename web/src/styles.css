@@ -325,7 +325,22 @@
   .st-win { width: min(560px, 100%); }
   .st-body > .primary { min-width: 150px; justify-content: center; text-align: center; }  /* same width for Start, Measuring… and Run again */
   .st-body { padding: 22px 24px 24px; display: grid; gap: 20px; justify-items: center; }
-  .st-gauge { width: min(100%, 340px); aspect-ratio: 380 / 300; display: block; }
+  /* --deg is the one animated number (0 is straight up, -120 is the dial's zero); the needle and the arc both read it. */
+  @property --deg { syntax: '<number>'; inherits: true; initial-value: -120; }
+  .st-gauge { --deg: -120; width: min(100%, 340px); aspect-ratio: 380 / 300; position: relative; container-type: inline-size;
+              transition: --deg var(--ms, 0ms) var(--ease, linear); }
+  .st-gauge svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible; }
+  .st-gauge .trk, .st-gauge .fil { fill: none; stroke-width: 18; stroke-linecap: round; }
+  .st-gauge .trk { stroke: var(--panel-2); }
+  /* The fill is the track's own path shown in part: 100 units long, so the dash offset is what's left to fill. */
+  .st-gauge .fil { stroke-dasharray: 100; stroke-dashoffset: calc((100 - (var(--deg) + 120) / 2.4) * 1px); opacity: clamp(0, (var(--deg) + 119.5) * 100, 1); }
+  .st-gauge text { fill: var(--dim); font-size: 15px; }
+  /* The needle is a zero-size box on the dial's centre that rotates; its bar hangs up from that point. */
+  .st-gauge .needle { position: absolute; left: 50%; top: 63.333%; width: 0; height: 0; transform: rotate(calc(var(--deg) * 1deg)); }
+  .st-gauge .needle::before { content: ''; position: absolute; bottom: 0; left: -.4cqw; width: .8cqw; height: 29.5cqw; border-radius: 1cqw; background: var(--text); }
+  .st-gauge .hub { position: absolute; left: 50%; top: 63.333%; width: 3.7cqw; height: 3.7cqw; margin: -1.85cqw 0 0 -1.85cqw; border-radius: 50%; background: var(--text); }
+  .st-gauge .num { position: absolute; left: 0; right: 0; top: 71%; text-align: center; font-size: 10.5cqw; line-height: 1.1; font-weight: 700; font-variant-numeric: tabular-nums; }
+  @media (prefers-reduced-motion: reduce) { .st-gauge { transition: none; } }
   .st-now { text-align: center; margin-top: -8px; color: var(--muted); font-size: 12px; min-height: 1.5em; }
   .st-res { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
   .st-res div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }

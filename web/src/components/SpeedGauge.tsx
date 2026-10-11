@@ -1,70 +1,55 @@
-// The speed test's dial: an ECharts gauge. The server's reading goes in as a position on the 0 · 1 · 2 · 5 ·
-// 10 · 25 · 50 · 100 MB/s scale; ECharts animates the needle and the arc together.
-import { useEffect, useRef } from 'preact/hooks';
+// The speed test's dial, built from ordinary page elements: an SVG arc and a div for the needle. Only CSS
+// animates them, so nothing is redrawn from script on every frame and the page stays free. The script sets
+// one number, --deg; the browser animates that number, and the needle and the arc both read it, so they
+// can't drift apart.
+import { useRef } from 'preact/hooks';
 import type { SpeedRun } from '../api';
-import { loadCharts, palette } from '../echarts';
 
+// Scale in MB/s: speeds people actually have, spread evenly (0 · 1 · 2 · 5 · 10 · 25 · 50 · 100).
 const TICKS = [0, 1, 2, 5, 10, 25, 50, 100];
-const DEG_PER_STEP = 240 / (TICKS.length - 1);
-const SWING = 150;  // degrees per second the needle may travel, so a far-off first reading is a climb, not a jump
+const SWEEP = 240;  // degrees: from -120 (0) to +120 (100); 0 is straight up, clockwise is positive
+const SWING = 150;  // degrees per second the needle may travel: a far-off first reading is a climb, not a jump
+const R = 160, CX = 190, CY = 190;  // the dial's arc and centre, in the SVG's own units
 
-/** MB/s to a position 0..7 along the scale (each tick one step apart). */
-function pos(v: number): number {
+function angle(v: number): number {
   const top = TICKS[TICKS.length - 1];
   v = Math.max(0, Math.min(top, v));
   const i = Math.max(0, TICKS.findIndex(t => t >= v) - 1), a = TICKS[i], b = TICKS[i + 1] ?? top;
-  return i + (b > a ? (v - a) / (b - a) : 0);
+  return -SWEEP / 2 + (i + (b > a ? (v - a) / (b - a) : 0)) * SWEEP / (TICKS.length - 1);
 }
+function point(deg: number, r: number): [number, number] {
+  const rad = (deg - 90) * Math.PI / 180;
+  return [CX + r * Math.cos(rad), CY + r * Math.sin(rad)];
+}
+// One fixed arc for the track and for the fill. The fill is the same path shown in part (stroke-dashoffset),
+// so its shape never changes: no arc flips between its short and long form near half a circle.
+const [x1, y1] = point(-SWEEP / 2, R), [x2, y2] = point(SWEEP / 2, R);
+const ARC = `M${x1.toFixed(1)} ${y1.toFixed(1)} A${R} ${R} 0 1 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
 
 export function SpeedGauge({ run, big }: { run: SpeedRun; big: string }) {
-  const box = useRef<HTMLDivElement>(null);
-  const chart = useRef<any>(null);
-  const shown = useRef({ at: 0, phase: run.phase });
-
-  const value = run.phase === 'download' || run.phase === 'upload' ? run.live : run.phase === 'done' ? run.down ?? 0 : 0;  // Mbit/s
-  const at = pos((value ?? 0) / 8);  // the server measures Mbit/s; the dial is in MB/s
-  const colour = run.phase === 'upload' ? 'violet' : 'blue';
-
-  const draw = () => {
-    const c = chart.current; if (!c) return;
-    const p = palette(), prev = shown.current;
-    const fresh = prev.phase !== run.phase && (run.phase === 'download' || run.phase === 'upload');  // a new direction starts from zero
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const ms = fresh || reduced ? 0 : Math.max(250, Math.min(1800, Math.abs(at - prev.at) * DEG_PER_STEP / SWING * 1000));
-    shown.current = { at, phase: run.phase };
-    c.setOption({ series: [{ animationDurationUpdate: ms, animationEasingUpdate: 'cubicOut', data: [{ value: at }],
-      progress: { itemStyle: { color: p[colour] } }, detail: { formatter: () => big } }] });
-  };
-
-  useEffect(() => {
-    let dead = false, ro: ResizeObserver | undefined;
-    loadCharts().then(ec => {
-      if (dead || !box.current) return;
-      const p = palette(), c = ec.init(box.current, undefined, { renderer: 'canvas' });
-      chart.current = c;
-      c.setOption({
-        animation: true,
-        series: [{
-          type: 'gauge', startAngle: 210, endAngle: -30, min: 0, max: TICKS.length - 1, splitNumber: TICKS.length - 1,
-          center: ['50%', '57%'], radius: '108%',
-          axisLine: { roundCap: true, lineStyle: { width: 18, color: [[1, p.track]] } },
-          progress: { show: true, roundCap: true, width: 18, itemStyle: { color: p.blue } },
-          pointer: { show: true, length: '58%', width: 4, itemStyle: { color: p.text } },
-          anchor: { show: true, size: 13, itemStyle: { color: p.text } },
-          axisTick: { show: false }, splitLine: { show: false },
-          axisLabel: { distance: 14, color: p.dim, fontSize: 12, fontFamily: p.mono, formatter: (v: number) => String(TICKS[Math.round(v)] ?? '') },
-          title: { show: false },
-          detail: { offsetCenter: [0, '48%'], color: p.text, fontSize: 34, fontWeight: 700, fontFamily: p.mono, formatter: () => big },
-          data: [{ value: 0 }],
-        }],
-      });
-      ro = new ResizeObserver(() => c.resize()); ro.observe(box.current);
-      shown.current = { at: 0, phase: 'idle' };
-      draw();
-    });
-    return () => { dead = true; ro?.disconnect(); chart.current?.dispose(); chart.current = null; };
-  }, []);
-
-  useEffect(draw, [at, run.phase, big]);
-  return <div class="st-gauge" ref={box} role="img" aria-label={`Speed ${big} MB/s`} />;
+  const live = run.phase === 'download' || run.phase === 'upload' ? run.live : run.phase === 'done' ? run.down ?? 0 : 0;  // Mbit/s
+  const deg = angle((live ?? 0) / 8);  // the server measures Mbit/s; the dial is in MB/s
+  const prev = useRef({ deg: -SWEEP / 2, phase: run.phase });
+  const fresh = prev.current.phase !== run.phase && (run.phase === 'download' || run.phase === 'upload');  // a new direction starts from zero
+  const jump = Math.abs(deg - prev.current.deg);
+  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // How long the move takes: as long as it needs at the allowed speed, never less than a reading interval.
+  const ms = fresh || reduced ? 0 : Math.max(300, Math.min(1800, jump / SWING * 1000));
+  prev.current = { deg, phase: run.phase };
+  const style = { '--deg': String(deg), '--ms': `${ms}ms`, '--ease': jump > 25 ? 'cubic-bezier(.2,.6,.3,1)' : 'linear' } as Record<string, string>;
+  return (
+    <div class="st-gauge" style={style} role="img" aria-label={`Speed ${big} MB/s`}>
+      <svg viewBox="0 0 380 300" aria-hidden="true">
+        <path class="trk" d={ARC} pathLength="100" />
+        <path class="fil" d={ARC} pathLength="100" style={{ stroke: run.phase === 'upload' ? 'var(--violet)' : 'var(--blue)' }} />
+        {TICKS.map((t, i) => {
+          const [x, y] = point(-SWEEP / 2 + i * SWEEP / (TICKS.length - 1), 130);
+          return <text key={t} x={x.toFixed(1)} y={(y + 4).toFixed(1)} text-anchor="middle">{t}</text>;
+        })}
+      </svg>
+      <i class="needle" />
+      <i class="hub" />
+      <b class="num">{big}</b>
+    </div>
+  );
 }

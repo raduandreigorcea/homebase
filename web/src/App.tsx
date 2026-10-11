@@ -9,7 +9,6 @@ import { Palette } from './components/Palette';
 import { SpeedTest } from './components/SpeedTest';
 import { loadXterm, TerminalWindow } from './components/TerminalWindow';
 import { Events, Header, LaptopCard } from './components/Top';
-import { loadCharts } from './echarts';
 import { detailId, dialogsOpen, historyOpen, netSpeedOpen, paletteOpen, poll, state, terminal } from './store';
 import { ChartTip, Dialogs, Toast } from './ui';
 
@@ -71,14 +70,6 @@ export function App() {
   // Load the terminal in the background once there's something to SSH into, so the first click is instant.
   const hasSsh = !!s?.devices.some(d => d.ssh);
   useEffect(() => { if (hasSsh) { const t = setTimeout(() => loadXterm().catch(() => {}), 3000); return () => clearTimeout(t); } }, [hasSsh]);
-  // Same for the charts library: the speed test and the history open at once.
-  // It takes about a second of the main thread to read, so it waits for a quiet moment.
-  useEffect(() => {
-    const go = () => loadCharts().catch(() => {});
-    const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, o: { timeout: number }) => number);
-    if (ric) { const id = ric(go, { timeout: 20000 }); return () => (window as any).cancelIdleCallback?.(id); }
-    const t = setTimeout(go, 8000); return () => clearTimeout(t);
-  }, []);
   return (
     <>
       <Header />

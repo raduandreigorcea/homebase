@@ -3,6 +3,8 @@
 // flatten it. Hovering any chart shows the value under the pointer.
 import type { JSX, RefObject } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import type { NetPoint, Outage } from './api';
+import { hhmm } from './format';
 import { hideTip, showTip } from './ui';
 
 const N = 90;  // samples on a response-time axis (a sample every 2-4 s)
@@ -87,7 +89,7 @@ function hoverProps(data: Series, label: string, unit: string, inset = 0): JSX.S
 const CHECK_EVERY = 4;  // seconds between checks, for how long a stretch of missed ones lasted
 
 /** "26 s", "4 min", "1.5 h". */
-export const fmtShort = (s: number) => s < 60 ? `${Math.max(1, Math.round(s))} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
+const fmtShort = (s: number) => s < 60 ? `${Math.max(1, Math.round(s))} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
 
 /** Where nothing answered (internet down, device gone): a grey dotted bridge from the last answer to the
  *  next one (on to the right edge while it's still down), with how long it lasted above it.
@@ -232,6 +234,79 @@ export function Gauge({ pct, text, col }: { pct: number; text: string; col: stri
       <path d={`M${cx - r} ${cy} A${r} ${r} 0 0 1 ${cx + r} ${cy}`} fill="none" stroke={col} stroke-width="9" stroke-linecap="round"
             stroke-dasharray={len} stroke-dashoffset={len * (1 - p)} style="transition:stroke-dashoffset .6s" />
       <text x={cx} y={cy - 4} text-anchor="middle" fill="#e6edf3" font-size="20" font-weight="600">{text}</text>
+    </svg>
+  );
+}
+
+/** The internet over a day, week or month: average response time per point, outages as red bands,
+ *  and gaps where the laptop was off or asleep. */
+export function HistoryChart({ points, outages, step, range }: { points: NetPoint[]; outages: Outage[]; step: number; range: string }) {
+  const [ref, w, h] = useSize<SVGSVGElement>();
+  const axis = 18, ch = h - axis, pad = 4;
+  const data: Series = points.map(p => p.avg ?? null);
+  const top = latTop(data, [50, 100, 200, 500, 1000, 2000]);  // never tighter than 50 ms: 2 ms of jitter isn't news
+  const t0 = points[0]?.t ?? 0, t1 = (points[points.length - 1]?.t ?? 0) + step;
+  const x = (t: number) => (t - t0) / Math.max(1, t1 - t0) * w;
+  const y = (v: number) => ch - pad - Math.min(v, top) / top * (ch - 2 * pad);
+  const colW = w / Math.max(1, points.length);
+  // Time labels: every 6 hours over a day, each midnight over a week, every 5 days over a month.
+  const ticks: [number, string][] = [];
+  const d = new Date(t0 * 1000);
+  d.setMinutes(0, 0, 0);
+  if (range === 'hour') {
+    d.setTime(Math.ceil(t0 / 600) * 600 * 1000);  // every 10 minutes
+    for (; d.getTime() / 1000 < t1; d.setMinutes(d.getMinutes() + 10)) ticks.push([d.getTime() / 1000, hhmm(d)]);
+  } else if (range === 'day') {
+    d.setHours(Math.ceil(d.getHours() / 6) * 6);
+    for (; d.getTime() / 1000 < t1; d.setHours(d.getHours() + 6)) ticks.push([d.getTime() / 1000, hhmm(d)]);
+  } else {
+    d.setHours(24);
+    const every = range === 'week' ? 1 : 5;
+    for (; d.getTime() / 1000 < t1; d.setDate(d.getDate() + every))
+      ticks.push([d.getTime() / 1000, d.toLocaleDateString('en-GB', range === 'week' ? { weekday: 'short' } : { day: 'numeric', month: 'short' })]);
+  }
+  const tipFor = (p: NetPoint) => {
+    const out = outages.filter(o => o.start < p.t + step && o.end > p.t);
+    const down = out.length ? ` · internet down ${out.map(o => fmtShort(o.end - o.start)).join(', ')}` : '';
+    return tipBase(p) + down;
+  };
+  const tipBase = (p: NetPoint) => {
+    const when = new Date(p.t * 1000);
+    const label = range === 'day' || range === 'hour' ? hhmm(when) : when.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + (range === 'week' ? ' ' + hhmm(when) : '');
+    if (p.avg == null) return p.loss ? `${label}: down` : `${label}: not measured (laptop off or asleep)`;
+    return `${label}: ${Math.round(p.avg)} ms average, worst ${Math.round(p.max ?? p.avg)} ms${p.loss ? `, ${Math.round(p.loss * 100)}% unanswered` : ''}`;
+  };
+  return (
+    <svg ref={ref} class="hist-chart" viewBox={`0 0 ${w || 600} ${h || 190}`} preserveAspectRatio="none" aria-label="Internet response time over time"
+         onMouseMove={e => {
+           const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+           const i = Math.floor((e.clientX - r.left) / r.width * points.length);
+           if (i >= 0 && i < points.length) showTip(e, tipFor(points[i])); else hideTip();
+         }}
+         onMouseLeave={hideTip}>
+      {w > 0 && <>
+        {[0, .5, 1].map(f => {
+          const gy = pad + (1 - f) * (ch - 2 * pad);
+          return <g key={f}><line x1="0" x2={w} y1={gy} y2={gy} stroke="#1b2430" /><text x="2" y={gy - 4} fill="var(--dim)" font-size="10">{Math.round(top * f)} ms</text></g>;
+        })}
+        <DownMarks vals={data} x={i => i * colW + colW / 2} y={y} right={(points.length - 1) * colW + colW / 2}
+                   isDown={i => !!points[i].loss} />  {/* no text: outages can sit close together here; the tooltip has it */}
+        {outages.map((o, i) => {
+          // A red line over the whole height at the time of the outage (at least 2 px wide): the 5-minute
+          // average around it can look perfectly normal, so the line itself has to say it happened.
+          let a = Math.max(0, x(o.start)), b = Math.min(w, x(o.end));
+          if (b - a < 2) { const c = (a + b) / 2; a = c - 1; b = c + 1; }
+          return b > 0 && a < w && <rect key={i} x={a.toFixed(1)} y={pad} width={(b - a).toFixed(1)} height={ch - 2 * pad} rx="1" fill="var(--red)" opacity=".85" />;
+        })}
+        <LineWithFill segs={segmentsOf(data, (v, i) => [i * colW + colW / 2, y(v)])} base={ch - pad} col="var(--blue)" />
+        {ticks.map(([t, label]) => {
+          const tx = x(t);
+          return tx > 14 && tx < w - 14 && <g key={t}>
+            <line x1={tx} x2={tx} y1={ch} y2={ch + 4} stroke="var(--line)" />
+            <text x={tx} y={h - 2} text-anchor="middle" fill="var(--dim)" font-size="10">{label}</text>
+          </g>;
+        })}
+      </>}
     </svg>
   );
 }
