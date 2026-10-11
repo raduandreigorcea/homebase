@@ -289,8 +289,9 @@ export function HistoryChart({ points, outages, step, range }: { points: NetPoin
           const gy = pad + (1 - f) * (ch - 2 * pad);
           return <g key={f}><line x1="0" x2={w} y1={gy} y2={gy} stroke="#1b2430" /><text x="2" y={gy - 4} fill="var(--dim)" font-size="10">{Math.round(top * f)} ms</text></g>;
         })}
-        <DownMarks vals={data} x={i => i * colW + colW / 2} y={y} right={(points.length - 1) * colW + colW / 2}
-                   isDown={i => !!points[i].loss} />  {/* no text: outages can sit close together here; the tooltip has it */}
+        {/* Every gap gets the dotted bridge: a stretch with no answer (the red line says why) and a time the laptop
+            was off or asleep alike. No text: gaps can sit close together here; the tooltip says which it is. */}
+        <DownMarks vals={data} x={i => i * colW + colW / 2} y={y} right={(points.length - 1) * colW + colW / 2} />
         {outages.map((o, i) => {
           // A red line over the whole height at the time of the outage (at least 2 px wide): the 5-minute
           // average around it can look perfectly normal, so the line itself has to say it happened.

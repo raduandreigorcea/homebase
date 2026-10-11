@@ -94,7 +94,7 @@ export function InternetHistory() {
                 </div>}
           </div>
         </div>
-        <div class="dv-foot"><span><kbd>Esc</kbd> close</span><span>gaps: this laptop was off or asleep</span><span>red: internet down</span></div>
+        <div class="dv-foot"><span><kbd>Esc</kbd> close</span><span>dotted: no data (laptop off or asleep)</span><span>red: internet down</span></div>
       </div>
     </div>
   );
