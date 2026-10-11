@@ -22,9 +22,12 @@ function point(deg: number, r: number): [number, number] {
   const rad = (deg - 90) * Math.PI / 180;
   return [190 + r * Math.cos(rad), 190 + r * Math.sin(rad)];
 }
+/** An arc along the dial, drawn as two equal halves. A single SVG arc near half a circle flips between
+ *  its "short way" and "long way" forms, and some renderers (WebKit, drawing on the GPU) redraw it
+ *  jumping around when the value hovers there. Halves of at most 120 degrees never get near that. */
 function arc(from: number, to: number, r: number): string {
-  const [x1, y1] = point(from, r), [x2, y2] = point(to, r);
-  return `M${x1.toFixed(1)} ${y1.toFixed(1)} A${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  const [x1, y1] = point(from, r), [xm, ym] = point((from + to) / 2, r), [x2, y2] = point(to, r);
+  return `M${x1.toFixed(1)} ${y1.toFixed(1)} A${r} ${r} 0 0 1 ${xm.toFixed(1)} ${ym.toFixed(1)} A${r} ${r} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
 }
 
 /** Eases toward the target angle every frame, so the needle and the coloured arc move together and smoothly
