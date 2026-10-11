@@ -12,7 +12,8 @@ interface Cmd { text: string; desc: string; run?: () => void; fill?: string }
 function commands(): Cmd[] {
   const out: Cmd[] = [
     { text: 'scan', desc: 'Look for new devices', run: () => { post('/api/scan').then(() => toast('Searching the network…', 'info')); } },
-    { text: 'speedtest', desc: 'Test your internet speed', run: () => { netSpeedOpen.value = true; } },
+    // Same verb as the devices' (speed pi): this laptop is just another thing to test, under its card's name.
+    { text: 'speed terminal', desc: 'Internet speed test', run: () => { netSpeedOpen.value = true; } },
   ];
   for (const d of state.value?.devices || []) {
     // Only what makes sense right now (an off device can only be woken or edited).
