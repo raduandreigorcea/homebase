@@ -311,7 +311,7 @@
   .dv-drop small { color: var(--dim); }
   .dv-drop:hover, .dv-drop.drop { border-color: var(--green); background: rgba(52, 211, 153, .06); }
   .dv-speed { display: grid; gap: 10px; justify-items: center; }  /* no box of its own: sits straight under the heading */
-  .dv-speed .st-gauge { width: min(100%, 200px); }
+  .dv-speed .st-gauge { width: min(100%, 230px); }
   .dv-speed .st-now { margin-top: -4px; }
   .dv-speed .st-res { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 96px; }  /* fixed: "Measure", "…" and "Again" don't move it */
   .dv-speed .st-res div { background: var(--panel); }
@@ -325,7 +325,7 @@
   .st-win { width: min(560px, 100%); }
   .st-body > .primary { min-width: 150px; justify-content: center; text-align: center; }  /* same width for Start, Measuring… and Run again */
   .st-body { padding: 22px 24px 24px; display: grid; gap: 20px; justify-items: center; }
-  .st-gauge { width: min(100%, 340px); display: block; }
+  .st-gauge { width: min(100%, 340px); aspect-ratio: 380 / 300; display: block; }
   .st-now { text-align: center; margin-top: -8px; color: var(--muted); font-size: 12px; min-height: 1.5em; }
   .st-res { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
   .st-res div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }

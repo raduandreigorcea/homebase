@@ -2,89 +2,11 @@
 // window, and a device's (run on the device itself, over SSH) inside its screen. The server measures;
 // this polls it four times a second while it runs.
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { SpeedGauge } from './SpeedGauge';
 import { enc, getJSON, post, type Device, type SpeedRun } from '../api';
 import { hhmm, mbs } from '../format';
 import { Close } from '../icons';
 import { netSpeedOpen, speeds, speedStart } from '../store';
-
-// Gauge scale in MB/s: speeds people actually have, spread evenly (0 · 1 · 2 · 5 · 10 · 25 · 50 · 100).
-const TICKS = [0, 1, 2, 5, 10, 25, 50, 100];
-const SWEEP = 240;  // degrees, from -120 (0) to +120 (100)
-
-function angle(v = 0): number {
-  const top = TICKS[TICKS.length - 1];
-  v = Math.max(0, Math.min(top, v));
-  const i = Math.max(0, TICKS.findIndex(t => t >= v) - 1);
-  const a = TICKS[i], b = TICKS[i + 1] ?? top;
-  return -SWEEP / 2 + (i + (b > a ? (v - a) / (b - a) : 0)) * SWEEP / (TICKS.length - 1);
-}
-function point(deg: number, r: number): [number, number] {
-  const rad = (deg - 90) * Math.PI / 180;
-  return [190 + r * Math.cos(rad), 190 + r * Math.sin(rad)];
-}
-/** An arc along the dial, drawn as two equal halves. A single SVG arc near half a circle flips between
- *  its "short way" and "long way" forms, and some renderers (WebKit, drawing on the GPU) redraw it
- *  jumping around when the value hovers there. Halves of at most 120 degrees never get near that. */
-function arc(from: number, to: number, r: number): string {
-  const [x1, y1] = point(from, r), [xm, ym] = point((from + to) / 2, r), [x2, y2] = point(to, r);
-  return `M${x1.toFixed(1)} ${y1.toFixed(1)} A${r} ${r} 0 0 1 ${xm.toFixed(1)} ${ym.toFixed(1)} A${r} ${r} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
-}
-
-const MAX_SWING = 150;  // degrees per second, at most
-
-/** Eases toward the target angle every frame, so the needle and the coloured arc move together and smoothly
- *  between the four-times-a-second readings. */
-function useGlide(target: number, phase: string): number {
-  const [shown, setShown] = useState(target);
-  const cur = useRef(target);
-  const lastPhase = useRef(phase);
-  useEffect(() => {
-    // A new direction starts from zero straight away: sliding back from the last reading would fold the
-    // whole arc up in a quarter of a second.
-    if (lastPhase.current !== phase) {
-      lastPhase.current = phase;
-      if (phase === 'download' || phase === 'upload') { cur.current = target; setShown(target); }
-    }
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { cur.current = target; setShown(target); return; }
-    let raf = 0, last = performance.now();
-    const step = (now: number) => {
-      // Eases toward the reading, but never faster than a real gauge could swing: the first reading of a
-      // direction can be far from zero, and the needle should climb to it, not jump.
-      const dt = Math.min(now - last, 100);
-      const want = (target - cur.current) * (1 - Math.exp(-dt / 330));
-      const cap = MAX_SWING * dt / 1000;
-      cur.current += Math.max(-cap, Math.min(cap, want));
-      last = now;
-      if (Math.abs(target - cur.current) < 0.1) cur.current = target;
-      setShown(cur.current);
-      if (cur.current !== target) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target, phase]);
-  return shown;
-}
-
-/** Centre at (190, 190); the arc's open bottom holds the big number. */
-function Dial({ run, big }: { run: SpeedRun; big: string }) {
-  const value = run.phase === 'download' || run.phase === 'upload' ? run.live : run.phase === 'done' ? run.down ?? 0 : 0;
-  const col = run.phase === 'upload' ? 'var(--violet)' : 'var(--blue)';
-  const deg = useGlide(angle((value ?? 0) / 8), run.phase);  // the server measures Mbit/s; the gauge is in MB/s
-  const [nx, ny] = point(0, 112);
-  return (
-    <svg class="st-gauge" viewBox="0 0 380 285" aria-hidden="true">
-      <path d={arc(-120, 120, 160)} fill="none" stroke="var(--panel-2)" stroke-width="18" stroke-linecap="round" />
-      {deg > -119.5 && <path d={arc(-120, deg, 160)} fill="none" stroke={col} stroke-width="18" stroke-linecap="round" />}
-      {TICKS.map((t, i) => {
-        const [x, y] = point(-SWEEP / 2 + i * SWEEP / (TICKS.length - 1), 130);
-        return <text key={t} x={x.toFixed(1)} y={(y + 4).toFixed(1)} text-anchor="middle" fill="var(--dim)" font-size="15">{t}</text>;
-      })}
-      <line x1="190" y1="190" x2={nx} y2={ny} transform={`rotate(${deg.toFixed(2)} 190 190)`} stroke="var(--text)" stroke-width="3" stroke-linecap="round" />
-      <circle cx="190" cy="190" r="7" fill="var(--text)" />
-      <text x="190" y="266" text-anchor="middle" fill="var(--text)" font-size="40" font-weight="700" style={{ fontVariantNumeric: 'tabular-nums' }}>{big}</text>
-    </svg>
-  );
-}
 
 const running = (r: SpeedRun) => ['ping', 'download', 'upload'].includes(r.phase);
 
@@ -131,7 +53,7 @@ export function DeviceSpeed({ d, online }: { d: Device; online: boolean }) {
   const val = (v: number | null | undefined, live: boolean) => v != null ? mbs(v) : live ? mbs(run.live) : '–';
   return (
     <div class="dv-speed">
-      <Dial run={run} big={bigOf(run)} />
+      <SpeedGauge run={run} big={bigOf(run)} />
       <div class="st-now">{label}</div>
       <div class="st-res">
         {cell(run.phase === 'download' ? 'on' : '', '↓ Down', val(run.down, run.phase === 'download'), 'MB/s')}
@@ -160,7 +82,7 @@ export function SpeedTest() {
           <span class="dv-tools"><button class="icon-btn" title="Close" onClick={close}><Close /></button></span>
         </div>
         <div class="st-body">
-          <Dial run={run} big={bigOf(run)} />
+          <SpeedGauge run={run} big={bigOf(run)} />
           <div class="st-now">{label}</div>
           <div class="st-res">
             {cell(run.phase === 'ping' ? 'on' : '', 'Ping', run.ping != null ? String(Math.round(run.ping)) : '–', 'ms')}
