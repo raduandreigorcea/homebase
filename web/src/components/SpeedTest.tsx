@@ -30,6 +30,8 @@ function arc(from: number, to: number, r: number): string {
   return `M${x1.toFixed(1)} ${y1.toFixed(1)} A${r} ${r} 0 0 1 ${xm.toFixed(1)} ${ym.toFixed(1)} A${r} ${r} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
 }
 
+const MAX_SWING = 150;  // degrees per second, at most
+
 /** Eases toward the target angle every frame, so the needle and the coloured arc move together and smoothly
  *  between the four-times-a-second readings. */
 function useGlide(target: number, phase: string): number {
@@ -46,7 +48,12 @@ function useGlide(target: number, phase: string): number {
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) { cur.current = target; setShown(target); return; }
     let raf = 0, last = performance.now();
     const step = (now: number) => {
-      cur.current += (target - cur.current) * (1 - Math.exp(-(now - last) / 330));
+      // Eases toward the reading, but never faster than a real gauge could swing: the first reading of a
+      // direction can be far from zero, and the needle should climb to it, not jump.
+      const dt = Math.min(now - last, 100);
+      const want = (target - cur.current) * (1 - Math.exp(-dt / 330));
+      const cap = MAX_SWING * dt / 1000;
+      cur.current += Math.max(-cap, Math.min(cap, want));
       last = now;
       if (Math.abs(target - cur.current) < 0.1) cur.current = target;
       setShown(cur.current);
