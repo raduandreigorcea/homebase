@@ -105,7 +105,7 @@ try {
     Add-Content $out ('wol=' + $w.wol + '|' + $w.why + '|' + $w.name)
 } catch { Add-Content $out "wol=0|$($_.Exception.Message)|" }
 '@
-$admin = $admin.Replace('__RDP__', $(if ($rdpOk) { 'yes' } else { 'no' })).Replace('__DIR__', $dir)
+$admin = $admin.Replace('__RDP__', $(if ($rdpOk) { 'yes' } else { 'no' })).Replace('__DIR__', $dir.Replace("'", "''"))
 $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($admin))
 # Started from "Terminal (Admin)" we already have the rights: no permission window at all.
 # From a normal terminal Windows asks, and it often leaves that window as a blinking taskbar icon.

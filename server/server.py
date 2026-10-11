@@ -10,6 +10,7 @@ import configparser
 import ipaddress
 import fcntl
 import json
+import math
 import os
 import pty
 import re
@@ -621,12 +622,25 @@ def sampler():
         time.sleep(INTERVAL)
 
 
+def lan_broadcast(ip):
+    """The broadcast address of the network this laptop is on, from the interface's real prefix length
+    (not assuming /24). Falls back to x.y.z.255."""
+    try:
+        out = subprocess.run(["ip", "-4", "-o", "addr", "show"], capture_output=True, text=True, timeout=3).stdout
+        m = re.search(rf"inet {re.escape(ip)}/(\d+)", out)
+        if m:
+            return str(ipaddress.ip_network(f"{ip}/{m.group(1)}", strict=False).broadcast_address)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+    return ip.rsplit(".", 1)[0] + ".255"
+
+
 def wake(mac):
     """Wake-on-LAN magic packet, sent out of the home network's interface to the general broadcast and
-    to the network's own (x.y.z.255, assuming a /24), on the two usual ports."""
+    to the network's own broadcast address, on the two usual ports."""
     raw = bytes.fromhex(mac.replace(":", "").replace("-", ""))
     ip = local_ip()
-    targets = ["255.255.255.255"] + ([ip.rsplit(".", 1)[0] + ".255"] if ip else [])
+    targets = ["255.255.255.255"] + ([lan_broadcast(ip)] if ip else [])
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         if ip:
@@ -1306,7 +1320,8 @@ def agent_push(token, body):
     stats = {"t": time.time()}
     for k in NUM_FIELDS:  # keep only known fields, as numbers
         v = body.get(k)
-        stats[k] = float(v) if isinstance(v, (int, float)) else None
+        # NaN and infinity are valid JSON numbers to Python; int() of them raises, so they count as "no value".
+        stats[k] = float(v) if isinstance(v, (int, float)) and math.isfinite(v) else None
     for k in ("host", "os", "top_name", "model", "user"):
         stats[k] = clean_name(body.get(k), 80)
     with lock:
