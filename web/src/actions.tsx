@@ -1,7 +1,7 @@
 // What the buttons, the device screen and the / palette do. One place, so they all behave the same.
 import { enc, post, type Device } from './api';
 import { USER_OK } from './format';
-import { detailId, localPower, poll, powerOf, speedStart, state, terminal } from './store';
+import { detailId, localPower, poll, powerOf, speedStart, state, terminal, waking } from './store';
 import { dialog, toast, toastProgress, type Field } from './ui';
 
 const NO_SERVER = 'Error: the server isn\'t responding';
@@ -60,7 +60,9 @@ export async function connect(d: Device) {
 
 export async function wake(d: Device) {
   const j = await post(`/api/wake/${enc(d.id)}`);
+  if (j.ok) waking.value = { ...waking.value, [d.id]: Date.now() };  // the card shows it right away
   toast(j.ok ? 'Wake-up signal sent. It can take a minute.' : NO_SERVER, j.ok ? 'info' : 'err');
+  if (j.ok) poll();
 }
 
 export async function removeDevice(d: Device) {

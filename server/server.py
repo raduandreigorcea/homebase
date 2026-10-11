@@ -622,11 +622,19 @@ def sampler():
 
 
 def wake(mac):
+    """Wake-on-LAN magic packet, sent out of the home network's interface to the general broadcast and
+    to the network's own (x.y.z.255, assuming a /24), on the two usual ports."""
     raw = bytes.fromhex(mac.replace(":", "").replace("-", ""))
+    ip = local_ip()
+    targets = ["255.255.255.255"] + ([ip.rsplit(".", 1)[0] + ".255"] if ip else [])
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        if ip:
+            s.bind((ip, 0))
         for _ in range(3):
-            s.sendto(b"\xff" * 6 + raw * 16, ("255.255.255.255", 9))
+            for target in targets:
+                for port in (9, 7):
+                    s.sendto(b"\xff" * 6 + raw * 16, (target, port))
 
 
 def shared_folder():
@@ -1254,13 +1262,14 @@ def agent_installer(code):
     if not dev or not dev.get("agent_token"):
         return None
     push_url = f"http://{local_net()}:{AGENT_PORT}/push/{dev['agent_token']}"
-    agent = (HERE / "agent-windows.ps1").read_text(encoding="utf-8").replace("__PUSH_URL__", push_url)
-    script = (HERE / "install-windows.ps1").read_text(encoding="utf-8").replace("__AGENT__", agent)
+    wol = (HERE / "wol-windows.ps1").read_text(encoding="utf-8")
+    agent = (HERE / "agent-windows.ps1").read_text(encoding="utf-8").replace("__PUSH_URL__", push_url).replace("__WOL__", wol)
+    script = (HERE / "install-windows.ps1").read_text(encoding="utf-8").replace("__AGENT__", agent).replace("__WOL__", wol)
     # Homebase's own public key, so the PC trusts it for SSH without anyone typing a password.
     return script.replace("__HOMEBASE_KEY__", remote.public_key())
 
 
-NUM_FIELDS = ("boot", "cpu", "mem_total", "mem_free", "disk_total", "disk_free", "gpu", "net_down", "net_up", "top_cpu", "nla")
+NUM_FIELDS = ("boot", "cpu", "mem_total", "mem_free", "disk_total", "disk_free", "gpu", "net_down", "net_up", "top_cpu", "nla", "wol")
 
 
 ssh_tries = {}  # device id -> last attempt, so a PC whose key doesn't work isn't retried every 5 s
@@ -1319,6 +1328,23 @@ def agent_push(token, body):
                 if d["id"] == dev["id"]:
                     d["nla"] = int(stats["nla"])
             save_devices(devices)
+    # Wake-on-LAN: whether the adapter the PC uses can wake it, and that adapter's address. The panel offers
+    # Wake only for a PC that said yes (a PC on Wi-Fi never does).
+    if stats["wol"] is not None:
+        wol = int(stats["wol"])
+        wol_mac = str(body.get("wol_mac") or "").lower()
+        wol_mac = wol_mac if wol == 1 and MAC_RE.match(wol_mac) else None
+        if dev.get("wol") != wol or dev.get("wol_mac") != wol_mac:
+            with devices_lock:
+                devices = load_devices()
+                for d in devices:
+                    if d["id"] == dev["id"]:
+                        d["wol"] = wol
+                        if wol_mac:
+                            d["wol_mac"] = wol_mac
+                        else:
+                            d.pop("wol_mac", None)
+                save_devices(devices)
     # Only the very first report is news; after a restart of this service it would just repeat.
     if first and not dev.get("agent_seen"):
         with devices_lock:
@@ -1424,7 +1450,7 @@ class Handler(BaseHTTPRequestHandler):
             raw = load_devices()
             known = {d.get("mac", "").lower() for d in raw}
             devices = [{k: v for k, v in d.items() if k != "agent_token"}
-                       | {"has_wake": bool(d.get("mac")) and d.get("kind") in ("desktop", "laptop", "other"),
+                       | {"has_wake": d.get("wol") == 1 and bool(d.get("wol_mac") or d.get("mac")),
                           "has_agent": bool(d.get("agent_token")), "windows": is_windows(d),
                           "recent": device_events(d), "rdp": state["rdp"].get(d["id"]),
                           "power": (state["power"].get(d["id"]) or {}).get("action")} for d in raw]
@@ -1593,8 +1619,8 @@ class Handler(BaseHTTPRequestHandler):
         dev = next((d for d in load_devices() if d["id"] == dev_id), None)
         if not dev:
             return self.send(404, {"error": "unknown device"})
-        if action == "wake" and dev.get("mac"):
-            wake(dev["mac"])
+        if action == "wake" and (dev.get("wol_mac") or dev.get("mac")):
+            wake(dev.get("wol_mac") or dev["mac"])
             return self.send(200, {"ok": True})
         if action == "connect":
             err = connect(dev)

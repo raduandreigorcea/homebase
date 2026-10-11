@@ -22,7 +22,7 @@ That slow laptop in the drawer still has a screen, a keyboard and a battery. Hom
 
 - ⌨️ **Everything from the keyboard.** Press `/` and type `ssh raspberrypi`, `wake office-pc` or `speed raspberrypi`. Tab completes.
 
-- 🖥️ **Remote desktop in one click.** Open a Windows PC with Remote Desktop (through Remmina, which can remember the password), or wake it up over the network when it's off. Files you drop on its card show up on the PC during the session.
+- 🖥️ **Remote desktop in one click.** Open a Windows PC with Remote Desktop (through Remmina, which can remember the password), or wake it up over the network when it's off. The wake button only shows for a PC that can really do it: setup checks that it's on a wired connection Windows lets wake it (over Wi-Fi it doesn't work, so no button). Files you drop on its card show up on the PC during the session.
 
 - 📺 **Your TV, from the couch.** Volume and play / pause / seek for anything playing over DLNA, even on old budget smart TVs.
 

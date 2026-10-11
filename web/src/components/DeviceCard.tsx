@@ -9,7 +9,7 @@ import { Back, Close, Connect, Edit, Fwd, KindIcon, Muted, Pause, Play, Power, S
 import { detailId, noNetwork, powerOf, state } from '../store';
 import { AsyncButton, toast } from '../ui';
 
-export const POWER_TXT = { reboot: 'Restarting…', poweroff: 'Shutting down…' } as const;
+export const POWER_TXT = { reboot: 'Restarting…', poweroff: 'Shutting down…', wake: 'Waking up…' } as const;
 
 // --- The terminal-style loading bar: a block bouncing along a track, ▱▱▰▰▰▱▱▱▱ ---
 // One timer drives every bar on the page, and only while at least one is showing.

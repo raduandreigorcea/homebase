@@ -18,7 +18,14 @@ export const dialogsOpen = signal(0);
 
 /** A restart / shutdown asked for: set the moment you confirm, until the server knows about it. */
 export const localPower = signal<Record<string, 'reboot' | 'poweroff'>>({});
-export const powerOf = (d: Device) => localPower.value[d.id] || d.power || null;
+/** A wake-up asked for: the card says "Waking up…" until the device answers (or a while passes). */
+export const waking = signal<Record<string, number>>({});
+const WAKE_PATIENCE = 90000;
+export const powerOf = (d: Device) => {
+  const w = waking.value[d.id];
+  if (w && Date.now() - w < WAKE_PATIENCE && state.value?.status[d.id]?.online !== true) return 'wake' as const;
+  return localPower.value[d.id] || d.power || null;
+};
 
 /** The last speed test to each device, shown in its screen (not on the card: it isn't live). */
 export const speeds = signal<Record<string, { down: string; up: string; t: number }>>({});

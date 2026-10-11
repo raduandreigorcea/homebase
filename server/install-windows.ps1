@@ -6,6 +6,7 @@
 # 3. SSH, in the same elevated step: Windows' own OpenSSH server with Homebase's key, so files, speed
 #    tests and restarts work without typing a password anywhere. When Homebase installs it, it accepts
 #    only keys (no passwords) and only connections from this home network.
+# 4. Wake-on-LAN: checks whether the adapter in use can wake this PC (wired only) and turns that on if so.
 # Plain ASCII on purpose: Windows PowerShell 5.1 can misread other characters when piped through iex.
 
 Write-Host ''
@@ -33,7 +34,7 @@ Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
     Where-Object { $_.CommandLine -like '*Homebase\agent.ps1*' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 Start-Process powershell.exe -ArgumentList $psArgs -WindowStyle Hidden
-Write-Host '  [1/3] Stats: done.' -ForegroundColor Green
+Write-Host '  [1/4] Stats: done.' -ForegroundColor Green
 
 # Homebase's SSH key for this user (no admin needed). Admin accounts use the shared file set below.
 $key = '__HOMEBASE_KEY__'
@@ -50,6 +51,7 @@ $rdpOk = $edition -notmatch 'Home'
 # Runs elevated, in its own process; sent encoded so no quoting can break it. Each part reports
 # its result in a small file, so one failing doesn't hide how the other went.
 $admin = @'
+__WOL__
 $out = Join-Path $env:TEMP 'homebase-prepare.txt'
 Set-Content -Path $out -Value '' -Encoding ascii
 function Step($name) { Add-Content $out "step=$name" }   # the window that started us shows these as progress
@@ -91,8 +93,19 @@ try {
     if ($fresh) { Set-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -RemoteAddress LocalSubnet -Profile Any }
     Add-Content $out 'ssh=ok'
 } catch { Add-Content $out "ssh=$($_.Exception.Message)" }
+try {
+    Step 'wol'
+    $w = Get-HomebaseWol
+    if ($w.wol -eq 1) {
+        powercfg /deviceenablewake $w.name | Out-Null
+        Set-NetAdapterPowerManagement -Name $w.alias -WakeOnMagicPacket Enabled -ErrorAction SilentlyContinue
+    }
+    # The agent (no admin rights) may not be able to ask Windows this itself: leave it the answer.
+    Set-Content -Path (Join-Path '__DIR__' 'wol.txt') -Value ('' + $w.wol + '|' + $w.mac) -Encoding ascii
+    Add-Content $out ('wol=' + $w.wol + '|' + $w.why + '|' + $w.name)
+} catch { Add-Content $out "wol=0|$($_.Exception.Message)|" }
 '@
-$admin = $admin.Replace('__RDP__', $(if ($rdpOk) { 'yes' } else { 'no' }))
+$admin = $admin.Replace('__RDP__', $(if ($rdpOk) { 'yes' } else { 'no' })).Replace('__DIR__', $dir)
 $enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($admin))
 # Started from "Terminal (Admin)" we already have the rights: no permission window at all.
 # From a normal terminal Windows asks, and it often leaves that window as a blinking taskbar icon.
@@ -110,15 +123,15 @@ try {
     $p = Start-Process @psi
     # Progress: the elevated part writes "step=..." lines as it goes; show them as a bar, a spinner and seconds.
     $labels = @{ 'rdp' = 'Turning on Remote Desktop'; 'ssh-install' = 'Installing SSH (can take 1-2 minutes)'
-                 'ssh-config' = 'Setting up SSH'; 'ssh-key' = 'Adding the Homebase key' }
-    $order = @('rdp', 'ssh-install', 'ssh-config', 'ssh-key')
+                 'ssh-config' = 'Setting up SSH'; 'ssh-key' = 'Adding the Homebase key'; 'wol' = 'Checking Wake-on-LAN' }
+    $order = @('rdp', 'ssh-install', 'ssh-config', 'ssh-key', 'wol')
     $spin = @('|', '/', '-', '\')
     $t0 = Get-Date
     $i = 0
     while (-not $p.HasExited) {
         $step = (Get-Content $result -ErrorAction SilentlyContinue | Where-Object { $_ -like 'step=*' } | Select-Object -Last 1) -replace '^step=', ''
         $n = [array]::IndexOf($order, $step) + 1
-        $bar = ('#' * ($n * 5)).PadRight(20, '-')
+        $bar = ('#' * ($n * 4)).PadRight(20, '-')
         $label = if ($labels[$step]) { $labels[$step] } else { 'Starting...' }
         $line = '  [{0}] {1} {2} ({3}s)' -f $bar, $spin[$i % 4], $label, [int]((Get-Date) - $t0).TotalSeconds
         Write-Host -NoNewline ("`r" + $line.PadRight(78))
@@ -128,13 +141,17 @@ try {
     Write-Host -NoNewline ("`r" + (' ' * 78) + "`r")
     $r = @{}
     if (Test-Path $result) { Get-Content $result | Where-Object { $_ -match '=' } | ForEach-Object { $a = $_ -split '=', 2; $r[$a[0]] = $a[1] } }
-    if (-not $rdpOk) { Write-Host "  [2/3] $edition has no Remote Desktop (Pro only)." -ForegroundColor Yellow }
-    elseif ($r['rdp'] -eq 'ok') { Write-Host '  [2/3] Remote Desktop: on.' -ForegroundColor Green }
-    else { Write-Host "  [2/3] Remote Desktop: couldn't turn it on. $($r['rdp'])" -ForegroundColor Red }
-    if ($r['ssh'] -eq 'ok') { Write-Host '  [3/3] SSH: on (Homebase key only, home network only).' -ForegroundColor Green }
-    else { Write-Host "  [3/3] SSH: couldn't turn it on. $($r['ssh'])" -ForegroundColor Red }
+    if (-not $rdpOk) { Write-Host "  [2/4] $edition has no Remote Desktop (Pro only)." -ForegroundColor Yellow }
+    elseif ($r['rdp'] -eq 'ok') { Write-Host '  [2/4] Remote Desktop: on.' -ForegroundColor Green }
+    else { Write-Host "  [2/4] Remote Desktop: couldn't turn it on. $($r['rdp'])" -ForegroundColor Red }
+    if ($r['ssh'] -eq 'ok') { Write-Host '  [3/4] SSH: on (Homebase key only, home network only).' -ForegroundColor Green }
+    else { Write-Host "  [3/4] SSH: couldn't turn it on. $($r['ssh'])" -ForegroundColor Red }
+    $wp = ($r['wol'] + '||') -split '\|'
+    if ($wp[0] -eq '1') { Write-Host '  [4/4] Wake-on-LAN: on. Homebase can wake this PC over the cable.' -ForegroundColor Green }
+    elseif ($wp[1] -eq 'wifi') { Write-Host '  [4/4] Wake-on-LAN: not possible over Wi-Fi, so Homebase will not offer Wake for this PC.' -ForegroundColor Yellow }
+    else { Write-Host "  [4/4] Wake-on-LAN: not available on this connection ($($wp[1])). Homebase will not offer Wake." -ForegroundColor Yellow }
 } catch {
-    Write-Host '  [2/3] [3/3] Skipped (you chose No). Stats work; you can run the command again any time.' -ForegroundColor Yellow
+    Write-Host '  [2/4] [3/4] [4/4] Skipped (you chose No). Stats work; you can run the command again any time.' -ForegroundColor Yellow
 }
 
 Write-Host ''

@@ -8,7 +8,14 @@ $cs = Get-CimInstance Win32_ComputerSystem
 $model = "$($cs.Manufacturer) $($cs.Model)".Trim()
 $rdpKey = 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp'
 
+__WOL__
+$wol = Get-HomebaseWol
+$loops = 0
+
 while ($true) {
+    # Wake-on-LAN doesn't change often: look again every ~5 minutes (and after a network change).
+    if ($loops -gt 0 -and $loops % 60 -eq 0) { $wol = Get-HomebaseWol }
+    $loops++
     $os = Get-CimInstance Win32_OperatingSystem
     $cpu = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average
     $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
@@ -50,6 +57,9 @@ while ($true) {
         # Who's signed in (the SSH user) and whether Homebase can reach this PC over SSH
         user       = $env:USERNAME
         ssh        = [int]((Get-Service sshd -ErrorAction SilentlyContinue).Status -eq 'Running')
+        # Can the adapter in use wake this PC from standby (wired only), and its address for the magic packet
+        wol        = $wol.wol
+        wol_mac    = $wol.mac
     } | ConvertTo-Json -Compress
 
     try {
