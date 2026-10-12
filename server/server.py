@@ -450,6 +450,44 @@ def check_internet():
     return min(lats) if lats else None
 
 
+# The laptop is about to suspend: systemd-logind says so (PrepareForSleep) before anything is switched off.
+# From then until it wakes, Wi-Fi going away is the laptop sleeping, not the internet failing, so nothing
+# is checked or written down (the first check after waking resets the state, as it always did).
+going_to_sleep = threading.Event()
+sleep_signal_at = 0.0
+
+
+def sleep_signal(line):
+    """True / False for a PrepareForSleep line from `gdbus monitor` ("... PrepareForSleep (true,)"), else None."""
+    if "PrepareForSleep" not in line:
+        return None
+    return "(true," in line if ("(true," in line or "(false," in line) else None
+
+
+def suspending():
+    # A signal that never got its "false" (the watcher died, the suspend was cancelled) stops counting after 2 minutes.
+    return going_to_sleep.is_set() and time.monotonic() - sleep_signal_at < 120
+
+
+def watch_sleep():
+    global sleep_signal_at
+    cmd = ["gdbus", "monitor", "--system", "--dest", "org.freedesktop.login1", "--object-path", "/org/freedesktop/login1"]
+    while True:
+        try:
+            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+            for line in p.stdout:
+                going = sleep_signal(line)
+                if going is True:
+                    sleep_signal_at = time.monotonic()
+                    going_to_sleep.set()
+                elif going is False:
+                    going_to_sleep.clear()
+            p.wait()
+        except OSError:
+            return  # no gdbus here: the sleep just isn't announced ahead
+        time.sleep(10)
+
+
 def sampler():
     nb = Netbook()
     fails = {}
@@ -472,6 +510,9 @@ def sampler():
         # One bad pass (a sensor that vanished, a full disk...) must not end the
         # loop: the page would keep showing frozen numbers and nothing restarts it.
         try:
+            if suspending():
+                time.sleep(1)
+                continue
             # CLOCK_BOOTTIME keeps counting through standby, CLOCK_MONOTONIC doesn't;
             # a jump between them means the terminal was just asleep.
             boot, mono = time.clock_gettime(time.CLOCK_BOOTTIME), time.monotonic()
@@ -1650,6 +1691,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    threading.Thread(target=watch_sleep, daemon=True).start()
     threading.Thread(target=sampler, daemon=True).start()
     threading.Thread(target=scanner, daemon=True).start()
     threading.Thread(target=term_reaper, daemon=True).start()
