@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "panel",
+  "description": "The panel page (served by the local service) may switch its own window to fullscreen and back. Nothing else.",
+  "windows": ["main"],
+  "remote": { "urls": ["http://127.0.0.1:8800/*"] },
+  "permissions": ["core:window:allow-set-fullscreen", "core:window:allow-is-fullscreen"]
+}

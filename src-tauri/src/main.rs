@@ -32,6 +32,9 @@ fn main() {
                 .title("Homebase")
                 .inner_size(1280.0, 820.0)
                 .min_inner_size(420.0, 500.0)
+                // HOMEBASE_FULLSCREEN=1 starts fullscreen (a screen that only shows the panel). F11 in the
+                // panel switches either way, through the "panel" capability.
+                .fullscreen(std::env::var("HOMEBASE_FULLSCREEN").as_deref() == Ok("1"))
                 .build()?;
             Ok(())
         })

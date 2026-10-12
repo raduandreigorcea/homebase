@@ -10,6 +10,7 @@ import { SpeedTest } from './components/SpeedTest';
 import { loadXterm, TerminalWindow } from './components/TerminalWindow';
 import { Events, Header, LaptopCard } from './components/Top';
 import { detailId, dialogsOpen, historyOpen, netSpeedOpen, paletteOpen, poll, state, terminal } from './store';
+import { toggleFullscreen } from './actions';
 import { ChartTip, Dialogs, Toast } from './ui';
 
 function Devices() {
@@ -39,6 +40,8 @@ function usePolling() {
 function useKeys() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // F11 works everywhere, the terminal included (the shell has no use for it).
+      if (e.key === 'F11') { e.preventDefault(); toggleFullscreen(); return; }
       if (dialogsOpen.value || paletteOpen.value) return;  // they handle their own keys
       // The terminal needs every key (Esc included) for the shell.
       if (terminal.value) return;
@@ -83,7 +86,7 @@ export function App() {
           <Events />
         </div>
       </main>
-      <footer>Updates every 2 seconds · runs locally on this computer · press / for commands</footer>
+      <footer>Updates every 2 seconds · runs locally on this computer · press / for commands · F11 for fullscreen</footer>
       {detailId.value && <DeviceScreen />}
       {historyOpen.value && <InternetHistory />}
       {netSpeedOpen.value && <SpeedTest />}

@@ -58,6 +58,23 @@ export async function connect(d: Device) {
   if (!j.ok) toast(j.error || 'Couldn\'t open Remote Desktop', 'err');
 }
 
+/** Fullscreen on or off (F11, or the palette). In the app window the window itself goes fullscreen (Tauri);
+ *  in a plain browser, the page does. */
+export async function toggleFullscreen() {
+  const tauri = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: object) => Promise<unknown> } }).__TAURI_INTERNALS__;
+  try {
+    if (tauri) {
+      const on = await tauri.invoke('plugin:window|is_fullscreen');
+      await tauri.invoke('plugin:window|set_fullscreen', { value: !on });
+      return;
+    }
+  } catch { /* not allowed or not there: use the browser's own */ }
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch { /* the engine refused: nothing to do */ }
+}
+
 export async function wake(d: Device) {
   const j = await post(`/api/wake/${enc(d.id)}`);
   if (j.ok) waking.value = { ...waking.value, [d.id]: Date.now() };  // the card shows it right away

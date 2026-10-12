@@ -437,3 +437,7 @@
   .hist-outs time { color: var(--dim); }
   .hist-outs i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: var(--red); }
   .hist-outs .now span { color: var(--red); }
+
+  /* Fullscreen: let the panel use the screen instead of a centred column. */
+  :fullscreen header, :fullscreen main { max-width: 1840px; }
+  :fullscreen footer { max-width: 1840px; }
