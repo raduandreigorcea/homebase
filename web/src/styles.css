@@ -46,14 +46,14 @@
     grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
   }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  /* Cards flow down columns, not along rows: a tall card (on) takes a column and the short ones (off) stack under
-     each other in the next, instead of being stretched to the tall one's height or left alone on a row. The
-     browser balances the columns, so this holds for any number of devices. */
-  .devices { column-width: 330px; column-gap: 16px; margin-bottom: -16px; }
-  /* The gap under a card is padding on its wrapper, not a margin: a margin left at the end of a column would be
-     carried to the top of the next one and push it down. */
-  .devices > .dcell { break-inside: avoid; padding-bottom: 16px; }
-  .devices > .card { break-inside: avoid; margin-bottom: 16px; }
+  /* A grid whose rows are shared: a card that's on (tall) spans two rows, one that's off (short) takes one. Short
+     cards stacked beside a tall one share its height and end where it ends, and dense packing fills the holes, so
+     it holds for any mix of devices. */
+  .devices { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); grid-auto-flow: row dense; }
+  .devices > .dcell { display: flex; min-width: 0; }
+  .devices > .dcell > .card { flex: 1; min-width: 0; }
+  .devices > .dcell.tall { grid-row: span 2; }
+  .device .actions { margin-top: auto; }  /* a card taller than its content keeps its buttons at the bottom */
 
   .card {
     background: var(--panel); border: 1px solid var(--line);
