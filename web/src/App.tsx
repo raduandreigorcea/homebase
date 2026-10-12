@@ -23,7 +23,7 @@ function Devices() {
   // On devices first, then the ones still being checked, then the off ones; otherwise the list order stays.
   const rank = (id: string) => ({ true: 0, false: 2 } as Record<string, number>)[String(s.status[id]?.online)] ?? 1;
   const sorted = s.devices.map((d, i) => [d, i] as const).sort((a, b) => rank(a[0].id) - rank(b[0].id) || a[1] - b[1]).map(([d]) => d);
-  return <div class="devices">{sorted.map(d => <DeviceCard key={d.id} d={d} st={s.status[d.id]} />)}</div>;
+  return <div class="devices">{sorted.map(d => <div class="dcell" key={d.id}><DeviceCard d={d} st={s.status[d.id]} /></div>)}</div>;
 }
 
 function usePolling() {
