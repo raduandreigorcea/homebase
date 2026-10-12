@@ -2,7 +2,7 @@
 // and then lists the devices it works on.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { post } from '../api';
-import { actionFits, deviceActions, doAction, toggleFullscreen } from '../actions';
+import { actionFits, deviceActions, doAction } from '../actions';
 import { norm } from '../format';
 import { paletteOpen, netSpeedOpen, state } from '../store';
 import { toast } from '../ui';
@@ -11,7 +11,6 @@ interface Cmd { text: string; desc: string; run?: () => void; fill?: string }
 
 function commands(): Cmd[] {
   const out: Cmd[] = [
-    { text: 'fullscreen', desc: 'Fullscreen on or off (F11)', run: toggleFullscreen },
     { text: 'scan', desc: 'Look for new devices', run: () => { post('/api/scan').then(() => toast('Searching the network…', 'info')); } },
     // Same verb as the devices' (speed pi): this laptop is just another thing to test, under its card's name.
     { text: 'speed terminal', desc: 'Internet speed test', run: () => { netSpeedOpen.value = true; } },

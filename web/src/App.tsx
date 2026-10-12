@@ -86,7 +86,7 @@ export function App() {
           <Events />
         </div>
       </main>
-      <footer>Updates every 2 seconds · runs locally on this computer · press / for commands · F11 for fullscreen</footer>
+      <footer>Updates every 2 seconds · runs locally on this computer · press / for commands · F11 leaves or enters fullscreen</footer>
       {detailId.value && <DeviceScreen />}
       {historyOpen.value && <InternetHistory />}
       {netSpeedOpen.value && <SpeedTest />}

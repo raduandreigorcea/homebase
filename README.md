@@ -56,7 +56,7 @@ cp linux/homebase.desktop ~/.local/share/applications/
 install -Dm644 src-tauri/icons/128x128.png ~/.local/share/icons/hicolor/128x128/apps/homebase.png
 ```
 
-The panel also works in any browser at <http://127.0.0.1:8800>. Press **F11** (or type `fullscreen` after `/`) for fullscreen; start the app with `HOMEBASE_FULLSCREEN=1` to open it that way. The page lives in `web/` (Preact and TypeScript); `npm run dev` serves it with live reload against the running service. Optional extras: `ptyxis` for opening SSH in a separate window, Remmina for Remote Desktop to Windows PCs, and `iw` for Wi-Fi signal strength.
+The panel also works in any browser at <http://127.0.0.1:8800>. The app opens fullscreen; press **F11** to leave it or go back (start it with `HOMEBASE_WINDOWED=1` for a normal window). The page lives in `web/` (Preact and TypeScript); `npm run dev` serves it with live reload against the running service. Optional extras: `ptyxis` for opening SSH in a separate window, Remmina for Remote Desktop to Windows PCs, and `iw` for Wi-Fi signal strength.
 
 ## License
 
