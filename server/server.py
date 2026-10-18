@@ -946,10 +946,13 @@ def add_device(body):
         if label:
             dev["os"] = label
     # Re-adding something that was removed earlier brings back its settings
-    # (SSH user, key...), only the name and type come from the form.
+    # (SSH user, key...) except being prepared; only the name and type come from the form.
     forgotten = load_json(FORGOTTEN_FILE, {})
     if mac in forgotten:
         dev = forgotten.pop(mac) | {"name": name, "kind": kind, "host": ip}
+        # Prepared again only once its agent reports; until then the Prepare button is back.
+        for k in ("nla", "agent_seen"):
+            dev.pop(k, None)
         if kind == "tv":  # a TV has no SSH, whatever this address was set up as before
             for k in ("ssh", "ssh_user", "key"):
                 dev.pop(k, None)
