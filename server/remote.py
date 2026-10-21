@@ -236,8 +236,10 @@ def action_argv(target, windows, action):
 STATS_CMD = ("echo U $(cut -d' ' -f1 /proc/uptime); head -1 /proc/stat; "
              "grep -E '^(MemTotal|MemAvailable):' /proc/meminfo; "
              "echo D $(df -Pk / | tail -1); echo T $(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null); "
+             "echo N $(awk -F'[: ]+' '$2!=\"lo\" && NF>10 {rx+=$3; tx+=$11} END {print rx+0, tx+0}' /proc/net/dev); "
              "echo K $(uname -r); echo M $(tr -d '\\0' < /proc/device-tree/model 2>/dev/null)")
 _prev_cpu = {}
+_prev_net = {}  # device -> (time, bytes received, bytes sent), for the speed between two reads
 
 
 def parse_stats(text, key, now):
@@ -265,6 +267,13 @@ def parse_stats(text, key, now):
                 out["disk_free"] = int(parts[4]) * 1024
             elif parts[0] == "T" and len(parts) > 1:
                 out["temp"] = round(int(parts[1]) / 1000, 1)
+            elif parts[0] == "N" and len(parts) >= 3:
+                rx, tx = int(parts[1]), int(parts[2])
+                prev = _prev_net.get(key)
+                if prev and now > prev[0] and rx >= prev[1] and tx >= prev[2]:
+                    out["net_down"] = round((rx - prev[1]) / (now - prev[0]))
+                    out["net_up"] = round((tx - prev[2]) / (now - prev[0]))
+                _prev_net[key] = (now, rx, tx)
             elif parts[0] == "K" and len(parts) > 1:
                 out["kernel"] = parts[1][:60]
             elif parts[0] == "M" and len(parts) > 1:

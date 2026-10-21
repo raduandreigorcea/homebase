@@ -77,7 +77,7 @@ export interface Found {
 export interface Laptop {
   cpu: number;
   mem: { total: number; used: number; pct: number };
-  net: { signal?: number; ssid?: string };
+  net: { signal?: number; ssid?: string; down?: number; up?: number };
   temps: { cpu?: number };
   battery: { pct: number; status: string } | null;
   ip?: string | null;

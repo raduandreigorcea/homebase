@@ -5,11 +5,12 @@ import { DeviceCard } from './components/DeviceCard';
 import { DeviceScreen } from './components/DeviceScreen';
 import { InternetHistory } from './components/InternetHistory';
 import { Discovered } from './components/Discovered';
+import { NetworkMap } from './components/NetworkMap';
 import { Palette } from './components/Palette';
 import { SpeedTest } from './components/SpeedTest';
 import { loadXterm, TerminalWindow } from './components/TerminalWindow';
 import { Events, Header, LaptopCard } from './components/Top';
-import { detailId, dialogsOpen, historyOpen, netSpeedOpen, paletteOpen, poll, state, terminal } from './store';
+import { detailId, dialogsOpen, historyOpen, netSpeedOpen, networkOpen, paletteOpen, poll, state, terminal } from './store';
 import { toggleFullscreen } from './actions';
 import { ChartTip, Dialogs, Toast } from './ui';
 
@@ -47,6 +48,7 @@ function useKeys() {
       if (terminal.value) return;
       if (e.key === 'Escape') {
         if (netSpeedOpen.value) netSpeedOpen.value = false;
+        else if (networkOpen.value) networkOpen.value = false;
         else if (historyOpen.value) historyOpen.value = false;
         else if (detailId.value) detailId.value = null;
         return;
@@ -86,9 +88,10 @@ export function App() {
           <Events />
         </div>
       </main>
-      <footer>Updates every 2 seconds · runs locally on this computer · press / for commands · F11 leaves or enters fullscreen</footer>
+      <footer>Updates every 2 seconds · press / for commands · <a href="#" onClick={(e: Event) => { e.preventDefault(); networkOpen.value = true; }}>network map</a></footer>
       {detailId.value && <DeviceScreen />}
       {historyOpen.value && <InternetHistory />}
+      {networkOpen.value && <NetworkMap />}
       {netSpeedOpen.value && <SpeedTest />}
       {terminal.value && <TerminalWindow />}
       {paletteOpen.value && <Palette />}

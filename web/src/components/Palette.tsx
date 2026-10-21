@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { post } from '../api';
 import { actionFits, deviceActions, doAction } from '../actions';
 import { norm } from '../format';
-import { paletteOpen, netSpeedOpen, state } from '../store';
+import { paletteOpen, netSpeedOpen, networkOpen, state } from '../store';
 import { toast } from '../ui';
 
 interface Cmd { text: string; desc: string; run?: () => void; fill?: string }
@@ -12,6 +12,7 @@ interface Cmd { text: string; desc: string; run?: () => void; fill?: string }
 function commands(): Cmd[] {
   const out: Cmd[] = [
     { text: 'scan', desc: 'Look for new devices', run: () => { post('/api/scan').then(() => toast('Searching the network…', 'info')); } },
+    { text: 'network', desc: 'Map of the network with live traffic', run: () => { networkOpen.value = true; } },
     // Same verb as the devices' (speed pi): this laptop is just another thing to test, under its card's name.
     { text: 'speed terminal', desc: 'Internet speed test', run: () => { netSpeedOpen.value = true; } },
   ];

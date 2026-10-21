@@ -23,6 +23,8 @@
     padding: 24px;
     min-height: 100vh;
   }
+  #app { min-height: calc(100vh - 48px); display: flex; flex-direction: column; }
+  #app > header, #app > main, #app > footer { width: 100%; }
   header {
     display: grid; grid-template-columns: 1fr 25% 1fr; align-items: center;
     gap: 16px; margin: 0 auto 24px; max-width: 1320px;
@@ -427,7 +429,32 @@
   .welcome h3 { margin: 0 0 6px; font-size: 16px; }
   .welcome p { margin: 0; color: var(--muted); }
   .welcome b { color: var(--text); font-weight: 600; }
-  footer { max-width: 1200px; margin: 18px auto 0; color: var(--dim); font-size: 12px; text-align: center; }
+  footer { max-width: 1200px; margin: auto auto 0; padding-top: 18px; color: var(--dim); font-size: 12px; text-align: center; }
+
+  footer a { color: var(--muted); }
+  footer a:hover { color: var(--text); }
+
+  /* Network map */
+  .net-win { width: min(1100px, 100%); }
+  .net-stage { position: relative; height: min(66vh, 620px); min-height: 380px; background: #0d1218; }
+  .net-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  /* The node is just the square, centred on its point; the name and speeds hang below it. */
+  .net-node { position: absolute; transform: translate(-50%, -50%); }
+  .net-label { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); display: grid; justify-items: center; width: 150px; text-align: center; }
+  .net-node.click { cursor: pointer; }
+  .net-node.click:hover .net-box { background: color-mix(in srgb, var(--c) 26%, var(--panel)); }
+  .net-box { width: 76px; height: 76px; border-radius: 18px; display: grid; place-items: center; color: var(--c, var(--text));
+             background: color-mix(in srgb, var(--c, var(--panel)) 14%, var(--panel)); border: 1.5px solid var(--c, var(--line));
+             box-shadow: 0 0 24px color-mix(in srgb, var(--c, transparent) 25%, transparent); }
+  .net-box svg { width: 40px; height: 40px; stroke: currentColor; stroke-width: 1.6; }
+  .net-node b { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; margin-top: 6px; }
+  .net-node small { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .net-node.off { opacity: .45; }
+  .net-node.off .net-box { box-shadow: none; }
+  .net-node.hub .net-box { --c: var(--green); border-radius: 50%; width: 84px; height: 84px; }
+  .net-node.hub.down .net-box { --c: var(--red); }
+  .net-key { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+  .net-key.router { background: var(--green); }
 
   /* Internet history window */
   .hist-win { width: min(900px, 100%); }
