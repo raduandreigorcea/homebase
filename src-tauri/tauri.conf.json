@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Homebase",
   "version": "0.1.0",
-  "identifier": "ro.radu.homebase",
+  "identifier": "app.homebase.panel",
   "build": {
     "frontendDist": "../dist"
   },
@@ -13,12 +13,51 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": [
+      "deb",
+      "rpm"
+    ],
+    "category": "Utility",
+    "shortDescription": "Control panel for the devices on your home network",
+    "longDescription": "Finds the devices on your network, shows what is on and off, and opens SSH, Remote Desktop, Wake-on-LAN and more in one click. Everything stays on your network.",
+    "license": "PolyForm-Noncommercial-1.0.0",
+    "licenseFile": "../LICENSE.md",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.png"
-    ]
+    ],
+    "resources": {
+      "../server/*.py": "server/",
+      "../server/*.ps1": "server/",
+      "../web/dist/**/*": "web/dist/"
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "python3",
+          "openssh-client",
+          "iproute2"
+        ],
+        "recommends": [
+          "iw",
+          "remmina",
+          "wakeonlan"
+        ]
+      },
+      "rpm": {
+        "depends": [
+          "python3",
+          "openssh-clients",
+          "iproute"
+        ],
+        "recommends": [
+          "iw",
+          "remmina"
+        ]
+      }
+    }
   }
 }

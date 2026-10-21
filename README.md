@@ -38,23 +38,25 @@ Home networks quietly fill up with things: a PC, a Raspberry Pi, a TV, a laptop 
 
 ## Install
 
-Homebase runs on Linux. The background service is plain Python 3 (standard library only); the window is a small [Tauri](https://tauri.app) app.
+Homebase runs on Linux. Download the `.deb` (Debian, Ubuntu, Mint) or the `.rpm` (Fedora, openSUSE) from the [latest release](../../releases/latest) and install it:
 
 ```sh
-# 1. The page (needs Node.js)
-npm install
-npm run build:ui
-
-# 2. The background service, started with your session
-cp linux/homebase.service ~/.config/systemd/user/   # adjust the path inside if the project isn't in ~/Projects/homebase-app
-systemctl --user enable --now homebase.service
-
-# 3. The app window (needs Rust)
-npm run build
-cp src-tauri/target/release/homebase ~/.local/bin/
-cp linux/homebase.desktop ~/.local/share/applications/
-install -Dm644 src-tauri/icons/128x128.png ~/.local/share/icons/hicolor/128x128/apps/homebase.png
+sudo apt install ./homebase_*.deb      # Debian, Ubuntu
+sudo dnf install ./homebase-*.rpm      # Fedora
 ```
+
+Open **Homebase** from the app menu. The first time, it starts its background service by itself and keeps it running with your session, so there is nothing else to set up. It finds your network on its own.
+
+### From source
+
+The background service is plain Python 3 (standard library only); the window is a small [Tauri](https://tauri.app) app (needs Node.js and Rust).
+
+```sh
+npm install
+npm run bundle            # the page, the app and the .deb / .rpm in src-tauri/target/release/bundle/
+```
+
+Or run it straight from the folder: `npm run build:ui`, start `server/server.py` (a systemd user service for it is in `linux/homebase.service`; adjust the path inside), then `npm run build` for the window.
 
 The panel also works in any browser at <http://127.0.0.1:8800>. The app opens fullscreen; press **F11** to leave it or go back (start it with `HOMEBASE_WINDOWED=1` for a normal window). The page lives in `web/` (Preact and TypeScript); `npm run dev` serves it with live reload against the running service. Optional extras: `ptyxis` for opening SSH in a separate window, Remmina for Remote Desktop to Windows PCs, and `iw` for Wi-Fi signal strength.
 

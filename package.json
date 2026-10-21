@@ -6,7 +6,8 @@
     "tauri": "tauri",
     "dev": "vite web",
     "build:ui": "tsc -p web && vite build web",
-    "build": "npm run build:ui && tauri build --no-bundle"
+    "build": "npm run build:ui && tauri build --no-bundle",
+    "bundle": "npm run build:ui && tauri build"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
