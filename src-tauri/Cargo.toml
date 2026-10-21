@@ -1,6 +1,6 @@
 [package]
 name = "homebase"
-version = "0.1.0"
+version = "0.1.1"
 description = "Homebase: panoul de control al terminalului"
 edition = "2021"
 

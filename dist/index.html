@@ -1,5 +1,19 @@
 <!doctype html>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Homebase</title>
-<!-- Unused: the window opens http://127.0.0.1:8800/ directly (see src-tauri/src/main.rs).
-     Tauri just needs a frontendDist to build. -->
+<!-- The window shows this while the background service starts, then moves on to http://127.0.0.1:8800/
+     (see src-tauri/src/main.rs). -->
+<style>
+  html, body { height: 100%; margin: 0; background: #0b0f14; color: #8b98a7;
+               font: 14px "JetBrains Mono", "DejaVu Sans Mono", monospace; }
+  body { display: grid; place-items: center; text-align: center; }
+  svg { width: 56px; height: 56px; margin-bottom: 18px; animation: pulse 1.6s ease-in-out infinite; }
+  b { display: block; color: #e6edf3; font-size: 20px; margin-bottom: 6px; }
+  @keyframes pulse { 50% { opacity: .45; } }
+</style>
+<div>
+  <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#121820" stroke="#232d39" /><path d="M8 17l8-7 8 7v7H8z" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linejoin="round" /></svg>
+  <b>Homebase</b>
+  Starting…
+</div>

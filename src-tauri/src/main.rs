@@ -60,18 +60,10 @@ fn main() {
 
     tauri::Builder::default()
         .setup(|app| {
-            // Make sure the data service is up, then wait (max ~15 s) for it to answer.
-            // Done here rather than in a start page: a tauri:// page can't fetch or
-            // navigate to plain http, so the old start page waited forever.
-            let server = app.path().resource_dir()?.join("server/server.py");
-            ensure_service(&server);
-            for _ in 0..60 {
-                if panel_up() {
-                    break;
-                }
-                thread::sleep(Duration::from_millis(250));
-            }
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::External(PANEL.parse().unwrap()))
+            // The window opens at once on a small "Starting Homebase" page, so a slow first start doesn't look like
+            // nothing happened. Meanwhile the data service is brought up (max ~60 s), and then the window moves on
+            // to the panel. The move is done from here: a page of the app itself can't navigate to plain http.
+            let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("Homebase")
                 .inner_size(1280.0, 820.0)
                 .min_inner_size(420.0, 500.0)
@@ -79,6 +71,17 @@ fn main() {
                 // re-enters it (through the "panel" capability); HOMEBASE_WINDOWED=1 starts in a normal window.
                 .fullscreen(std::env::var("HOMEBASE_WINDOWED").as_deref() != Ok("1"))
                 .build()?;
+            let server = app.path().resource_dir()?.join("server/server.py");
+            thread::spawn(move || {
+                ensure_service(&server);
+                for _ in 0..240 {
+                    if panel_up() {
+                        break;
+                    }
+                    thread::sleep(Duration::from_millis(250));
+                }
+                let _ = window.navigate(PANEL.parse().unwrap());
+            });
             Ok(())
         })
         .run(tauri::generate_context!())

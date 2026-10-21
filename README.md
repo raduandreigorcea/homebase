@@ -26,6 +26,8 @@ That slow laptop in the drawer still has a screen, a keyboard and a battery. Hom
 
 - 📺 **Your TV, from the couch.** Volume and play / pause / seek for anything playing over DLNA, even on old budget smart TVs.
 
+- 🕸️ **The network as a picture.** Press `/` and type `network`: every device is a square on a circle around the router, and dots run along the lines at the speed it really sends and receives, with a small pulse when something arrives. Real numbers for this computer, Linux devices with SSH and Windows PCs with the agent; a TV or phone only shows a faint dot to say it's alive.
+
 - 🌐 **Internet at a glance.** A live line of your connection's response time sits in the top bar, and you hear about it when the internet drops and when it's back.
 
 - 🔔 **A history that makes sense.** Devices turning on and off, outages, and unknown devices joining your network all land in one timeline, with desktop notifications for the ones that matter.
@@ -45,7 +47,9 @@ sudo apt install ./homebase_*.deb      # Debian, Ubuntu
 sudo dnf install ./homebase-*.rpm      # Fedora
 ```
 
-Open **Homebase** from the app menu. The first time, it starts its background service by itself and keeps it running with your session, so there is nothing else to set up. It finds your network on its own.
+Open **Homebase** from the app menu. The first time, it starts its background service by itself and keeps it running with your session, so there is nothing else to set up. It finds your network on its own. Removing the package removes the service too; your devices and history stay in `~/.local/share/homebase`.
+
+Windows PCs send their stats to port 8801 of this computer. If it has a firewall (Fedora does), open that port for them: `sudo firewall-cmd --permanent --add-port=8801/tcp && sudo firewall-cmd --reload`.
 
 ### From source
 
