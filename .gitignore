@@ -4,3 +4,6 @@ build.log
 __pycache__/
 src-tauri/gen/
 web/dist/
+
+graphify-out/
+.claude/

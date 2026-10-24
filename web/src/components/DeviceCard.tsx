@@ -111,7 +111,7 @@ export function DeviceCard({ d, st }: { d: Device; st?: Status }) {
   const wakeBtn = d.has_wake && !pending && st?.online === false && <AsyncButton minMs={600} onClick={() => wake(d)}><Power /> Wake it up</AsyncButton>;
 
   return (
-    <section class={`card device${checked && !online ? ' is-off' : ''}${drop ? ' drop' : ''}`}
+    <section class={`card device${checked && !online ? ' is-off' : ''}${noNetwork.value && !checked ? ' no-net' : ''}${st?.quiet != null ? ' quiet' : ''}${drop ? ' drop' : ''}`}
              onClick={e => { if (!(e.target as Element).closest('button, input, a')) detailId.value = d.id; }}
              onDragOver={e => { if (e.dataTransfer?.types.includes('Files')) { e.preventDefault(); setDrop(true); } }}
              onDragLeave={e => { if (!(e.currentTarget as Element).contains(e.relatedTarget as Node)) setDrop(false); }}
@@ -122,7 +122,7 @@ export function DeviceCard({ d, st }: { d: Device; st?: Status }) {
           <div class="dev-name" title={d.name}>{d.name}</div>
           <div class="dev-sub">{d.os && <><span class="os-tag">{d.os.replace(' (DLNA)', '')}</span> · </>}{d.host}</div>
           <span class={`pill ${pending ? 'pending' : !checked ? '' : online ? 'on' : 'off'}`}><span class="dot" />
-            {pending ? POWER_TXT[pending] : !checked ? (noNetwork.value ? 'No network' : 'Checking…') : online ? 'On' : 'Off'}</span>
+            {pending ? POWER_TXT[pending] : st?.quiet != null ? `No response · ${Math.max(0, Math.round(s.now - st.quiet))}s` : !checked ? (noNetwork.value ? 'No network' + (st?.was != null ? ` · was ${st.was ? 'on' : 'off'}` : '') : 'Checking…') : online ? 'On' : 'Off'}</span>
         </div>
         <div class="dev-tools">
           <button class="icon-btn" title="Settings" onClick={e => { e.stopPropagation(); editDevice(d); }}><Edit /></button>

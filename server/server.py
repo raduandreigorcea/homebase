@@ -555,6 +555,7 @@ def sampler():
                     results = [(None, None)] * len(devs)
                     fails.clear()  # nothing went quiet on its own: don't count this time towards "off"
                 for d, (online, lat) in zip(devs, results):
+                    quiet = None
                     # A device in Wi-Fi power saving can miss a few checks while it's
                     # perfectly fine, so it's only "off" after DEVICE_OFF_AFTER seconds
                     # of silence. Without this, a Pi Zero logged on/off every minute.
@@ -564,11 +565,14 @@ def sampler():
                             # Keep showing what we knew; if we knew nothing yet (just started), "checking".
                             prev_online = state["devices"].get(d["id"], {}).get("online")
                             online = True if prev_online else None
+                            quiet = first_fail  # since when it hasn't answered; the card counts from it, between our checks
                     else:
                         fails.pop(d["id"], None)
                     if waking and online is False:
                         online = None
                     devices[d["id"]] = {"online": online, "latency": lat, "checked": time.time(), "name": d["name"]}
+                    if quiet is not None:
+                        devices[d["id"]]["quiet"] = quiet
                 ilat = check_internet() if lan else None
                 net_fails = 0 if ilat is not None else net_fails + 1 if lan else FAILS_BEFORE_OFF
                 internet = {"online": ilat is not None or net_fails < FAILS_BEFORE_OFF, "latency": ilat,
@@ -594,6 +598,8 @@ def sampler():
                     if v["online"] is None:
                         if "since" in prev:
                             v["since"] = prev["since"]
+                        if not lan:
+                            v["was"] = last_known.get(k)  # what it was last time we could see it, for the card
                         state["devices"][k] = v
                         if not lan:
                             push(f"lat:{k}", None)  # no network here: the chart gets a gap instead of freezing
@@ -1443,7 +1449,7 @@ class AgentHandler(BaseHTTPRequestHandler):
             return self.reply(404, "not found")
         try:
             length = int(self.headers.get("Content-Length", 0))
-            if length > 16384:
+            if not 0 <= length <= 16384:
                 return self.reply(413, "too big")
             body = json.loads(self.rfile.read(length) or b"{}")
         except (ValueError, json.JSONDecodeError):
@@ -1459,6 +1465,12 @@ PANEL_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
+
+    def handle(self):
+        try:
+            super().handle()
+        except (BrokenPipeError, ConnectionResetError):  # the page closed before the answer
+            pass
 
     def foreign_host(self):
         """True for requests whose Host isn't us. Blocks DNS rebinding: a web page on
@@ -1526,7 +1538,8 @@ class Handler(BaseHTTPRequestHandler):
                     "sshstats": {k: v for k, v in state["sshstats"].items() if time.time() - v["t"] < SSH_STATS_FRESH},
                     "gateway": next((v["ip"] for v in state["discovered"].values() if v["kind"] == "router"), None),
                     "events": list(events)[-30:][::-1],
-                    "stats": {k: v for k, v in state["stats"].items() if time.time() - v["t"] < STATS_FRESH},
+                    "stats": {k: v for k, v in state["stats"].items()
+                              if time.time() - v["t"] < STATS_FRESH or "quiet" in state["devices"].get(k, {})},
                     "history": {k: list(v) for k, v in state["history"].items()},
                     "agents_enabled": AGENTS_ENABLED,
                     # Changes when the page itself changes, so an open page knows to reload.

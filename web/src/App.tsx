@@ -10,7 +10,7 @@ import { Palette } from './components/Palette';
 import { SpeedTest } from './components/SpeedTest';
 import { loadXterm, TerminalWindow } from './components/TerminalWindow';
 import { Events, Header, LaptopCard } from './components/Top';
-import { detailId, dialogsOpen, historyOpen, netSpeedOpen, networkOpen, paletteOpen, poll, state, terminal } from './store';
+import { detailId, dialogsOpen, historyOpen, netSpeedOpen, noNetwork, networkOpen, paletteOpen, poll, state, terminal } from './store';
 import { toggleFullscreen } from './actions';
 import { ChartTip, Dialogs, Toast } from './ui';
 
@@ -78,16 +78,17 @@ export function App() {
   return (
     <>
       <Header />
+      {noNetwork.value && <div class="nonet-bar">No network on this computer. The devices can't be checked until it's back; they're not necessarily off.</div>}
       <main>
         <div class="stack">
           <Devices />
-          {s && <Discovered />}
         </div>
         <div class="stack">
           <LaptopCard />
           <Events />
         </div>
       </main>
+      {s && <div class="disc-wrap"><Discovered /></div>}
       <footer>Updates every 2 seconds · press / for commands · <a href="#" onClick={(e: Event) => { e.preventDefault(); networkOpen.value = true; }}>network map</a></footer>
       {detailId.value && <DeviceScreen />}
       {historyOpen.value && <InternetHistory />}

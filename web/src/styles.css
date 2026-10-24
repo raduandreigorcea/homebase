@@ -475,3 +475,50 @@
   /* Fullscreen: let the panel use the screen instead of a centred column. */
   :fullscreen header, :fullscreen main { max-width: 1840px; }
   :fullscreen footer { max-width: 1840px; }
+
+  /* Terminal look: square corners, flat, no glow, text-style labels. Last in the file so it wins. */
+  :root { --radius: 2px; }
+  .card, .dlg, .toast, .pal, .disc, .dv-tile, .dv-chart, .st-res div, .hist-tabs, .pal-item, .dv-drop, .dv-foot kbd,
+  .dlg input, .dv-head .dev-icon, .dev-icon, .dev-icon.sm, .net-box, .chart-tip, .bat-net, .disc-form .kind,
+  .bar, .bar i, .mini > i, .mini > i > i, .tv-range { border-radius: 0; }
+  button, .icon-btn { border-radius: 4px; }  /* buttons stay buttons, just squarer */
+  .tv-btn { border-radius: 4px; }
+  .card, .dlg, .toast, .pal, .net-box, .net-node.hub .net-box { box-shadow: none; }
+  .device.drop { box-shadow: none; outline: 1px dashed var(--green); outline-offset: -4px; }
+  .net-node.hub .net-box { border-radius: 0; }
+  .bar { height: 4px; }
+  .tv-range::-webkit-slider-thumb, .tv-range::-moz-range-thumb { border-radius: 0; }
+
+  .card h2 { text-transform: lowercase; letter-spacing: 0; font-size: 13px; font-weight: 500; }
+  .card h2::before { content: '# '; color: var(--green); white-space: pre; }
+  .card h2 { justify-content: flex-start; gap: 0; }  /* the # sits against the title; what trails goes right */
+  .card h2 > span { margin-left: auto; }
+
+  .dev-icon { background: transparent; border: 1px solid var(--line); }
+  .dev-name { font-size: 15px; }
+  .dev-sub { color: var(--dim); }
+
+  .pill { background: transparent; padding: 0; margin-top: 4px; border-radius: 0; font-weight: 500; }
+  .pill .dot { border-radius: 0; width: 7px; height: 7px; box-shadow: none; }
+  .pill.on .dot { box-shadow: none; }
+  .pill.on { color: var(--green); }
+  .pill.off { color: var(--red); }
+
+  .facts { flex-direction: column; gap: 2px; }
+  .facts div { display: flex; gap: 12px; }
+  .facts span { margin: 0; width: 80px; flex: none; }
+  .facts b { font-size: 13px; font-weight: 500; }
+
+
+  /* What's been found on the network sits under everything, centred. */
+  .disc-wrap { width: 100%; max-width: 900px; margin: auto auto 0; padding-top: 20px; }  /* pushed down to the footer */
+  .disc-wrap + footer { margin-top: 0; }
+
+  /* This laptop has no network: say so once, and keep the cards as they were, dimmed, instead of emptying them. */
+  .nonet-bar { max-width: 1320px; margin: 0 auto 16px; padding: 8px 12px; border: 1px solid var(--amber); color: var(--amber); border-radius: 4px; }
+  .device.no-net .dev-icon, .device.no-net .facts, .device.no-net .dev-name { opacity: .55; }
+  .pill:not(.on):not(.off):not(.pending) { color: var(--amber); }
+  /* Stopped answering but not called off yet: keep what was there, dimmed, and say so. */
+  .device.quiet .facts, .device.quiet .minis, .device.quiet .spark { opacity: .45; }
+  .device.quiet .actions button { opacity: .45; pointer-events: none; }
+  .device.quiet .pill { color: var(--amber); }

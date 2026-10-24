@@ -33,6 +33,8 @@ export interface Status {
   online: boolean | null;  // null: still being checked
   latency: number | null;
   since?: number;
+  quiet?: number;  // since when it hasn't answered (unix time), before we call it off
+  was?: boolean | null;  // with no network here: what it was the last time we could see it
 }
 
 /** Stats read over SSH (Linux) or sent by the agent (Windows); the fields both have, and the rest. */
